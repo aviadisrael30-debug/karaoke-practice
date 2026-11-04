@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>תרגול שורה ראשונה</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; background: #f6f4ef; color: #1c1a17; min-height: 100vh; display: flex; justify-content: center; padding: 24px 16px; }
+  .card { background: #fff; border-radius: 20px; box-shadow: 0 4px 24px rgba(0,0,0,.08); max-width: 460px; width: 100%; padding: 28px 24px; height: fit-content; }
+  h1 { font-size: 22px; margin-bottom: 4px; }
+  .fact { font-size: 13px; color: #7a756c; margin-bottom: 20px; }
+  h2 { font-size: 17px; margin-bottom: 12px; color: #4a463f; }
+  ol.steps { padding-right: 20px; margin-bottom: 16px; line-height: 1.9; font-size: 15px; }
+  .hint { font-size: 13px; color: #7a756c; margin-top: 14px; line-height: 1.6; }
+  .error { color: #b91c1c; font-size: 14px; margin-top: 12px; line-height: 1.5; }
+  button { display: block; width: 100%; border: 0; border-radius: 12px; padding: 14px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 10px; min-height: 48px; }
+  .primary { background: #1c1a17; color: #fff; }
+  .primary:disabled { background: #9b968c; }
+  .secondary { background: #efeadf; color: #1c1a17; }
+  audio { width: 100%; margin: 10px 0 6px; }
+  .closing { font-size: 12px; color: #9b968c; text-align: center; margin-top: 22px; line-height: 1.6; }
+  .hidden { display: none; }
+  .words { display: flex; justify-content: center; gap: 10px; direction: ltr; flex-wrap: wrap; margin: 18px 0; }
+  .word { text-align: center; padding: 6px 8px; border-radius: 10px; transition: background .12s, transform .12s; }
+  .word .heb { font-size: 24px; font-weight: 700; color: #6b675f; }
+  .word .eng { font-size: 12px; color: #9b968c; margin-top: 2px; }
+  .word.active { background: #dbeafe; transform: scale(1.12); }
+  .word.active .heb { color: #1d4ed8; }
+  .word.sung .heb { color: #1c1a17; }
+  .countin { position: fixed; inset: 0; background: rgba(20,18,15,.82); display: flex; align-items: center; justify-content: center; z-index: 50; }
+  .countin.hidden { display: none; }
+  .countin span { font-size: 120px; font-weight: 800; color: #fff; }
+  .recbar { height: 8px; background: #efeadf; border-radius: 4px; overflow: hidden; margin-top: 14px; }
+  .recbar i { display: block; height: 100%; width: 0; background: #b91c1c; }
+  .recbar.play i { background: #1d4ed8; }
+  .reclabel { color: #b91c1c; font-weight: 700; text-align: center; margin-top: 10px; font-size: 15px; }
+  .saved-banner { background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 12px; padding: 12px; font-size: 14px; margin-bottom: 14px; color: #065f46; }
+  .songfile { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px 14px; margin-top: 12px; font-size: 14px; line-height: 1.7; }
+  .songfile .ok { color: #065f46; font-weight: 700; }
+  .calib { display: flex; gap: 10px; direction: ltr; }
+  .calib button { flex: 1; font-size: 14px; padding: 10px; min-height: 44px; }
+  .cue-note { font-size: 12px; color: #9b968c; text-align: center; margin: -4px 0 10px; }
+  .stepnum { display: inline-block; background: #1c1a17; color: #fff; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 13px; margin-left: 6px; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>תרגול שירה - שורה ראשונה</h1>
+  <p class="fact">השיר וההקלטות נשארים בטלפון שלך בלבד. שום דבר לא עולה לשום מקום.</p>
+
+  <div id="saved" class="saved-banner hidden">
+    יש טייק שמור מהפעם הקודמת. אפשר לשמוע אותו, להוריד, או להקליט מחדש.
+    <audio controls id="saved-player" style="margin-top:8px"></audio>
+    <button class="secondary" id="btn-saved-download">הורד את הטייק השמור</button>
+  </div>
+
+  <div id="blocked" class="hidden">
+    <h2>הדף חוסם הקלטה</h2>
+    <p class="hint">הדף הזה נחסם על ידי סביבת האירוח ואי אפשר להקליט בו. אל תנסה כאן - חזור לקישור שקיבלת.</p>
+  </div>
+
+  <div id="gate">
+    <h2>לפני שמתחילים</h2>
+    <ol class="steps">
+      <li><b>חבר אוזניות.</b> השיר יתנגן רק באוזניות, והמיקרופון יקליט רק אותך.</li>
+      <li>שב במקום שקט, הטלפון בערך 20 ס״מ מהפה.</li>
+      <li>אין צורך לשיר מדויק. זה תרגול של שורה אחת.</li>
+    </ol>
+
+    <div class="songfile" id="songfile-box">
+      <span class="stepnum">1</span><b>טען את קובץ השיר מהטלפון</b>
+      <div id="song-status">עדיין לא נטען שיר.</div>
+      <button class="secondary" id="btn-pick">בחר את קובץ השיר</button>
+      <input type="file" id="file-input" accept="audio/*" class="hidden">
+    </div>
+
+    <div class="songfile">
+      <span class="stepnum">2</span><b>אפשר מיקרופון</b>
+      <button class="primary" id="btn-mic" disabled>אפשר מיקרופון ונתחיל</button>
+      <p class="hint hidden" id="mic-hint">אם דחית מיקרופון בעבר - אפשר אותו מחדש דרך סמל המנעול בשורת הכתובת</p>
+      <p class="error hidden" id="err-gate"></p>
+    </div>
+  </div>
+
+  <div id="ready" class="hidden">
+    <h2>התחלת השיר - שורה 1</h2>
+    <div class="words" id="words"></div>
+    <p class="cue-note">צביעת המילים היא הדרכה בלבד - שר בקצב שלך</p>
+    <button class="secondary" id="btn-play">▶ שמע את השורה באוזניות</button>
+    <div class="recbar play hidden" id="playbar"><i></i></div>
+    <div class="calib" id="calib">
+      <button class="secondary" id="btn-earlier">− ההדגשה מוקדם מדי</button>
+      <button class="secondary" id="btn-later">ההדגשה מאוחר מדי +</button>
+    </div>
+    <button class="primary" id="btn-rec">● הקלט את עצמך שר עם השיר</button>
+    <div class="recbar hidden" id="recbar"><i></i></div>
+    <p class="reclabel hidden" id="reclabel">● מקליט... שר עם מה שאתה שומע באוזניות</p>
+    <p class="hint">אחרי לחיצה על הקלטה תישמע ספירה 3-2-1 ואז השורה מתנגנת באוזניות והמילים נצבעות. שר איתה. ההקלטה עוצרת לבד כשהשורה מסתיימת. אפשר להקליט כמה פעמים.</p>
+    <p class="error hidden" id="err-ready"></p>
+  </div>
+
+  <div id="review" class="hidden">
+    <h2 id="take-title">טייק - איך יצא?</h2>
+    <p class="hint">זו ההקלטה שלך בלבד, בלי השיר ברקע.</p>
+    <audio controls id="player"></audio>
+    <button class="secondary" id="btn-again">הקלט שוב</button>
+    <button class="primary" id="btn-done">בוצע ✓</button>
+  </div>
+
+  <div id="done" class="hidden">
+    <h2>הטייק מוכן</h2>
+    <p class="hint">עכשיו שלח לי את הקובץ כאן בוואטסאפ, ואני אשמיע לך איך זה משתלב עם השיר.</p>
+    <p class="hint hidden" id="persist-ok">הטייק גם נשמר בדף - אם תרענן, הוא עדיין כאן.</p>
+    <p class="hint hidden" id="persist-fail" style="color:#b91c1c;font-weight:600">שים לב: הטייק חי רק בדף הזה. הורד אותו לפני רענון או סגירה.</p>
+    <button class="primary hidden" id="btn-share">שתף בוואטסאפ</button>
+    <button class="secondary" id="btn-download">הורד את ההקלטה</button>
+    <button class="secondary" id="btn-again2">הקלט שוב</button>
+    <p class="hint">אם הורדת: פתח את התיקייה ושלח את הקובץ לכאן.</p>
+  </div>
+
+  <p class="closing">המיקרופון מקליט רק כשאתה לוחץ, ושום דבר לא יוצא מהמכשיר בלי שאתה משתף.</p>
+</div>
+
+<div id="countin" class="countin hidden"><span id="countnum">3</span></div>
+
+<audio id="song" preload="auto"></audio>
+<script>
+// Opening line of the song. No song audio is embedded: the user picks his own
+// copy from his phone; it never leaves the device.
+var WORD_LIST = [['How','הַאוּ'],['do','דוּ'],['I','אַיי'],['say','סֶיי'],['goodbye','גוּד־בַּיי']];
+// Word cue times relative to segment start, from transcription of the opening
+// line. Approximate guide; the user can nudge with the calibrate buttons.
+var WORD_TIMES = [[0.66,2.06],[2.06,2.32],[2.32,2.56],[2.56,3.04],[3.04,3.96]];
+var DEFAULT_LINE_START = 10.60; // segment start; the first word lands +0.66s later
+var SEG_TAIL = 1.10;
+var LS_TAKE = 'karaoke_v2_l1_take', LS_OFFSET = 'karaoke_v2_l1_offset', LS_SONGNAME = 'karaoke_v2_song_name';
+var WORDS = WORD_LIST.map(function(w, i){ return {en:w[0], he:w[1], t0: WORD_TIMES[i][0], t1: WORD_TIMES[i][1]}; });
+var segOffset = 0;
+try { segOffset = parseFloat(localStorage.getItem(LS_OFFSET)) || 0; } catch(e){}
+function segStart(){ return DEFAULT_LINE_START + segOffset; }
+function segLen(){ return WORD_TIMES[WORDS.length-1][1] + SEG_TAIL; }
+
+var stream = null, rec = null, chunks = [], attempt = 0;
+var takeUrl = null, takeFile = null, hlTimer = null, stopTimer = null;
+var songReady = false, songUrl = null;
+var $ = function(id){ return document.getElementById(id); };
+var song = $('song');
+
+function show(step){ ['gate','ready','review','done','blocked'].forEach(function(s){ $(s).classList.toggle('hidden', s!==step); }); }
+function err(id, msg){ var e=$(id); e.textContent=msg; e.classList.remove('hidden'); }
+function clearErrs(){ ['err-gate','err-ready'].forEach(function(id){ $(id).classList.add('hidden'); }); }
+
+(function(){
+  var w = $('words');
+  WORDS.forEach(function(word){
+    var d = document.createElement('div');
+    d.className = 'word';
+    d.innerHTML = '<div class="heb">'+word.he+'</div><div class="eng">'+word.en+'</div>';
+    w.appendChild(d);
+  });
+})();
+
+function highlightAt(t){
+  var nodes = $('words').children;
+  for (var i=0;i<WORDS.length;i++){
+    nodes[i].classList.toggle('active', t>=WORDS[i].t0 && t<WORDS[i].t1);
+    nodes[i].classList.toggle('sung', t>=WORDS[i].t1);
+  }
+}
+function clearHighlight(){
+  var nodes = $('words').children;
+  for (var i=0;i<nodes.length;i++){ nodes[i].classList.remove('active','sung'); }
+}
+function stopHighlight(){ if(hlTimer){ clearInterval(hlTimer); hlTimer=null; } }
+function startHighlightSync(){
+  stopHighlight();
+  hlTimer = setInterval(function(){ highlightAt(song.currentTime - segStart()); }, 50);
+}
+function stopSong(){
+  try { song.pause(); } catch(e){}
+  if (stopTimer){ clearTimeout(stopTimer); stopTimer=null; }
+}
+function playSegment(onend){
+  stopSong();
+  try { song.currentTime = segStart(); } catch(e){}
+  var end = segStart() + segLen();
+  var p = song.play();
+  if (p && p.catch) p.catch(function(){});
+  function tick(){
+    var bar = $('playbar').firstElementChild;
+    var pct = Math.min(100, Math.max(0, (song.currentTime - segStart())/segLen()*100));
+    bar.style.width = pct+'%';
+    if (song.currentTime >= end || song.ended){ stopSong(); stopHighlight(); clearHighlight(); if(onend) onend(); return; }
+    stopTimer = setTimeout(tick, 60);
+  }
+  tick();
+}
+
+// ---------- song file picking + IndexedDB persistence ----------
+var IDB_NAME='karaoke-db', IDB_STORE='files';
+function idbOpen(){
+  return new Promise(function(res, rej){
+    var r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = function(){ r.result.createObjectStore(IDB_STORE); };
+    r.onsuccess = function(){ res(r.result); };
+    r.onerror = function(){ rej(r.error); };
+  });
+}
+function idbPut(key, val){
+  return idbOpen().then(function(db){
+    return new Promise(function(res, rej){
+      var tx = db.transaction(IDB_STORE,'readwrite');
+      tx.objectStore(IDB_STORE).put(val, key);
+      tx.oncomplete = res; tx.onerror = function(){ rej(tx.error); };
+    });
+  });
+}
+function idbGet(key){
+  return idbOpen().then(function(db){
+    return new Promise(function(res, rej){
+      var rq = db.transaction(IDB_STORE,'readonly').objectStore(IDB_STORE).get(key);
+      rq.onsuccess = function(){ res(rq.result); };
+      rq.onerror = function(){ rej(rq.error); };
+    });
+  });
+}
+function setSongBlob(blob, name){
+  if (songUrl) URL.revokeObjectURL(songUrl);
+  songUrl = URL.createObjectURL(blob);
+  song.src = songUrl;
+  songReady = true;
+  try { localStorage.setItem(LS_SONGNAME, name || 'השיר שלך'); } catch(e){}
+  $('song-status').innerHTML = '<span class="ok">✓ השיר נטען:</span> ' + (name || 'השיר שלך');
+  $('btn-mic').disabled = false;
+  $('btn-pick').textContent = 'החלף את קובץ השיר';
+}
+$('btn-pick').onclick = function(){ $('file-input').click(); };
+$('file-input').onchange = function(){
+  var f = this.files && this.files[0];
+  if(!f) return;
+  setSongBlob(f, f.name);
+  idbPut('song', f).catch(function(){});
+};
+idbGet('song').then(function(blob){
+  if (blob && blob.size) {
+    var nm = 'השיר שלך';
+    try { nm = localStorage.getItem(LS_SONGNAME) || nm; } catch(e){}
+    setSongBlob(blob, nm);
+  }
+}).catch(function(){});
+
+// ---------- recording helpers ----------
+function pickMime(){
+  var c = ['audio/webm;codecs=opus','audio/mp4','audio/webm','audio/ogg;codecs=opus'];
+  if (typeof MediaRecorder === 'undefined') return '';
+  for (var i=0;i<c.length;i++){ try { if (MediaRecorder.isTypeSupported(c[i])) return c[i]; } catch(e){} }
+  return '';
+}
+function pcmWavBlob(audioBuf){
+  var n = audioBuf.length, sr = audioBuf.sampleRate;
+  var data = audioBuf.getChannelData(0);
+  var bytes = 44 + n*2, buf = new ArrayBuffer(bytes), v = new DataView(buf);
+  function ws(off,s){ for(var i=0;i<s.length;i++) v.setUint8(off+i, s.charCodeAt(i)); }
+  ws(0,'RIFF'); v.setUint32(4, bytes-8, true); ws(8,'WAVE'); ws(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  ws(36,'data'); v.setUint32(40, n*2, true);
+  for (var i=0;i<n;i++){ var s = Math.max(-1, Math.min(1, data[i])); v.setInt16(44+i*2, s<0 ? s*0x8000 : s*0x7FFF, true); }
+  return new Blob([buf], {type:'audio/wav'});
+}
+function blobToB64(blob){
+  return new Promise(function(res, rej){
+    var r = new FileReader();
+    r.onload = function(){ res(String(r.result).split(',')[1]); };
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+function b64ToBlob(b64, type){
+  var bin = atob(b64), arr = new Uint8Array(bin.length);
+  for (var i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return new Blob([arr], {type:type});
+}
+var persistState = 'idle';
+function saveTake(blob, name){
+  blobToB64(blob).then(function(b64){
+    try { localStorage.setItem(LS_TAKE, JSON.stringify({b64:b64, name:name, mime:blob.type})); persistState='ok'; }
+    catch(e){ persistState='fail'; }
+  }).catch(function(){ persistState='fail'; });
+}
+function loadSavedTake(){
+  try {
+    var raw = localStorage.getItem(LS_TAKE);
+    if(!raw) return;
+    var o = JSON.parse(raw);
+    var blob = b64ToBlob(o.b64, o.mime || 'audio/wav');
+    $('saved-player').src = URL.createObjectURL(blob);
+    $('saved').dataset.name = o.name;
+    $('saved').classList.remove('hidden');
+  } catch(e){}
+}
+loadSavedTake();
+
+(function(){
+  var pp = document.permissionsPolicy || document.featurePolicy;
+  if (pp && typeof pp.allowsFeature === 'function' && pp.allowsFeature('microphone') === false) { show('blocked'); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { show('blocked'); return; }
+  try {
+    navigator.permissions.query({name:'microphone'}).then(function(r){
+      if (r && r.state === 'denied') $('mic-hint').classList.remove('hidden');
+    }).catch(function(){});
+  } catch(e){}
+})();
+
+$('btn-saved-download').onclick = function(){
+  var a = document.createElement('a');
+  a.href = $('saved-player').src; a.download = $('saved').dataset.name || 'line-01-take.wav';
+  document.body.appendChild(a); a.click(); a.remove();
+};
+
+$('btn-mic').onclick = function(){
+  clearErrs();
+  if (!songReady){ err('err-gate','קודם טען את קובץ השיר (שלב 1).'); return; }
+  navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){
+    stream = s; show('ready');
+  }).catch(function(e){
+    if (e && (e.name==='NotFoundError' || e.name==='OverconstrainedError')) err('err-gate','לא נמצא מיקרופון פעיל. חבר אוזניות או מיקרופון ונסה שוב.');
+    else if (e && (e.name==='NotAllowedError' || e.name==='SecurityError')) err('err-gate','לא התקבלה גישה למיקרופון. אשר מיקרופון כשמבקשים ונסה שוב. אם לא קופצת בקשה - פתח את הגדרות האתר בכרום ובדוק שהמיקרופון מורשה לדף זה.');
+    else err('err-gate','לא התקבלה גישה למיקרופון. בדוק שהדפדפן מאשר מיקרופון לאתר ונסה שוב.');
+  });
+};
+
+$('btn-play').onclick = function(){
+  clearErrs(); clearHighlight();
+  if (!songReady){ err('err-ready','קודם טען את קובץ השיר.'); return; }
+  $('playbar').classList.remove('hidden');
+  startHighlightSync();
+  playSegment(function(){ $('playbar').classList.add('hidden'); });
+};
+
+$('btn-earlier').onclick = function(){ segOffset -= 0.25; try{localStorage.setItem(LS_OFFSET, String(segOffset));}catch(e){} clearHighlight(); };
+$('btn-later').onclick = function(){ segOffset += 0.25; try{localStorage.setItem(LS_OFFSET, String(segOffset));}catch(e){} clearHighlight(); };
+
+function countIn(cb){
+  var box = $('countin'), num = $('countnum');
+  box.classList.remove('hidden');
+  var seq = ['3','2','1'], i = 0;
+  num.textContent = seq[0];
+  var t = setInterval(function(){
+    i++;
+    if (i < seq.length){ num.textContent = seq[i]; }
+    else { clearInterval(t); box.classList.add('hidden'); cb(); }
+  }, 700);
+}
+
+$('btn-rec').onclick = function(){
+  clearErrs(); clearHighlight();
+  if(!stream){ err('err-ready','אין גישה למיקרופון. רענן את הדף.'); return; }
+  if(!songReady){ err('err-ready','קודם טען את קובץ השיר.'); return; }
+  var mime = pickMime();
+  if(!mime){ err('err-ready','הדפדפן לא תומך בהקלטה כאן. נסה כרום או ספארי עדכני.'); return; }
+  var btn = this; btn.disabled = true;
+  countIn(function(){
+    try {
+      chunks = [];
+      rec = new MediaRecorder(stream, {mimeType: mime});
+      rec.ondataavailable = function(ev){ if(ev.data && ev.data.size>0) chunks.push(ev.data); };
+      rec.onstop = function(){
+        stopSong(); stopHighlight(); clearHighlight();
+        $('recbar').classList.add('hidden'); $('reclabel').classList.add('hidden');
+        btn.textContent = '● הקלט את עצמך שר עם השיר'; btn.disabled = false;
+        var raw = new Blob(chunks, {type: mime});
+        if (!raw.size || raw.size < 500) {
+          err('err-ready','לא נקלט קול. בדוק שהמיקרופון עובד ונסה שוב.');
+          return;
+        }
+        var finish = function(blob, ext, mimeOut){
+          attempt++;
+          takeFile = new File([blob], 'line-01-take-'+attempt+'.'+ext, {type: mimeOut});
+          if (takeUrl) URL.revokeObjectURL(takeUrl);
+          takeUrl = URL.createObjectURL(blob);
+          var pl = $('player'); pl.src = takeUrl;
+          pl.onloadedmetadata = function(){
+            if (pl.duration === Infinity || isNaN(pl.duration)) {
+              pl.currentTime = 1e10;
+              pl.ontimeupdate = function(){ pl.ontimeupdate = null; pl.currentTime = 0; };
+            }
+          };
+          $('take-title').textContent = 'טייק ' + attempt + ' - איך יצא?';
+          var canShare = false;
+          try { canShare = !!(navigator.canShare && navigator.canShare({files:[takeFile]})); } catch(e){}
+          $('btn-share').classList.toggle('hidden', !canShare);
+          saveTake(blob, takeFile.name);
+          show('review');
+        };
+        raw.arrayBuffer().then(function(ab){
+          var AC = window.AudioContext || window.webkitAudioContext;
+          var ctx = new AC();
+          ctx.decodeAudioData(ab).then(function(buf){
+            if (!buf.duration || buf.duration < 0.5) {
+              err('err-ready','לא נקלט קול. בדוק שהמיקרופון עובד ונסה שוב.');
+              return;
+            }
+            finish(pcmWavBlob(buf), 'wav', 'audio/wav');
+          }).catch(function(){ finish(raw, 'webm', mime); });
+        }).catch(function(){ finish(raw, 'webm', mime); });
+      };
+      btn.textContent = '● מקליט...';
+      $('recbar').classList.remove('hidden'); $('reclabel').classList.remove('hidden');
+      var bar = $('recbar').firstElementChild; bar.style.width = '0%';
+      var t0 = Date.now(), total = segLen();
+      var pt = setInterval(function(){
+        var p = Math.min(100, (Date.now()-t0)/(total*10));
+        bar.style.width = p+'%';
+        if (p>=100) clearInterval(pt);
+      }, 100);
+      // play the song segment in the headphones while recording the mic
+      startHighlightSync();
+      playSegment(null);
+      try { rec.start(250); } catch(e2) {
+        stopSong(); stopHighlight(); clearHighlight();
+        $('recbar').classList.add('hidden'); $('reclabel').classList.add('hidden');
+        btn.textContent='● הקלט את עצמך שר עם השיר'; btn.disabled=false;
+        err('err-ready','ההקלטה לא התחילה. נסה שוב.');
+        return;
+      }
+      // stop recording shortly after the segment ends
+      setTimeout(function(){ try{ rec.stop(); }catch(e){} }, total*1000 + 400);
+    } catch(e){
+      stopSong(); stopHighlight(); clearHighlight();
+      $('recbar').classList.add('hidden'); $('reclabel').classList.add('hidden');
+      btn.textContent = '● הקלט את עצמך שר עם השיר'; btn.disabled = false;
+      err('err-ready','ההקלטה לא התחילה. נסה שוב.');
+    }
+  });
+};
+
+$('btn-again').onclick = function(){ show('ready'); };
+$('btn-again2').onclick = function(){ show('ready'); };
+$('btn-done').onclick = function(){
+  $('persist-ok').classList.toggle('hidden', persistState!=='ok');
+  $('persist-fail').classList.toggle('hidden', persistState!=='fail');
+  show('done');
+};
+$('btn-download').onclick = function(){
+  if(!takeUrl || !takeFile) return;
+  var a = document.createElement('a');
+  a.href = takeUrl; a.download = takeFile.name;
+  document.body.appendChild(a); a.click(); a.remove();
+};
+$('btn-share').onclick = function(){
+  if(!takeFile) return;
+  navigator.share({files:[takeFile], title:'הקלטת שורה 1'}).catch(function(){});
+};
+</script>
+</body>
+</html>
