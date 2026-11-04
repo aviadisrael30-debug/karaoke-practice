@@ -207,10 +207,10 @@ function migrateV1(){
     for (var i=0;i<LEGACY_IDS.length;i++){
       var id = LEGACY_IDS[i];
       var ap = localStorage.getItem('kfs_appr_'+i);
-      if (ap!=null && localStorage.getItem(apprKey(i))==null){ localStorage.setItem(apprKey(i), ap); log.migrated.push('kfs_appr_'+i); }
+      if (ap!=null && localStorage.getItem('kfs2_appr_'+id)==null){ localStorage.setItem('kfs2_appr_'+id, ap); log.migrated.push('kfs_appr_'+i); }
       var of = localStorage.getItem('kfs_off_'+i);
       if (of!=null){
-        if (OFF_OK[i] && localStorage.getItem(offKey(i))==null){ localStorage.setItem(offKey(i), of); log.migrated.push('kfs_off_'+i); }
+        if (OFF_OK[i] && localStorage.getItem('kfs2_off_'+id)==null){ localStorage.setItem('kfs2_off_'+id, of); log.migrated.push('kfs_off_'+i); }
         else if (!OFF_OK[i]){ log.archived.push('kfs_off_'+i); }
       }
     }
@@ -228,9 +228,9 @@ function migrateV1(){
   var chain = Promise.resolve();
   LEGACY_IDS.forEach(function(id, i){
     chain = chain.then(function(){ return idbGet('kfs_take_'+i); }).then(function(b){
-      if (!b) return; return idbGet(takeKey(i)).then(function(ex){ if (!ex){ log.migrated.push('kfs_take_'+i); return idbSet(takeKey(i), b); } });
+      if (!b) return; return idbGet('kfs2_take_'+id).then(function(ex){ if (!ex){ log.migrated.push('kfs_take_'+i); return idbSet('kfs2_take_'+id, b); } });
     }).then(function(){ return idbGet('kfs_draft_'+i); }).then(function(b){
-      if (!b) return; return idbGet(draftKey(i)).then(function(ex){ if (!ex){ log.migrated.push('kfs_draft_'+i); return idbSet(draftKey(i), b); } });
+      if (!b) return; return idbGet('kfs2_draft_'+id).then(function(ex){ if (!ex){ log.migrated.push('kfs_draft_'+i); return idbSet('kfs2_draft_'+id, b); } });
     }).catch(function(){});
   });
   return chain.then(function(){
@@ -314,7 +314,7 @@ var LINES = [{"id":"how-do-i-say#o1","words":[["how","הַאוּ"],["do","דוּ
 var LEGACY_IDS = ["how-do-i-say#o1", "to-someone-who-was#o1", "you-were-my-home#o1", "always-first-through-the#o1", "i-never-had-to#o1", "you-laughed-the-whole#o1", "you-danced-like-time#o1", "you-wanted-rest-beside#o1", "we-wanted-you-to#o1", "you-taught-me-i#o1", "you-never-taught-me#o1", "how-do-i-let#o1", "you-taught-me-i#o2", "ill-always-be-your#o1", "when-she-was-gone#o1", "the-strongest-man-id#o1", "i-held-on-to#o1", "forgive-me-for-not#o1", "my-love-was-there#o1", "i-hope-you-felt#o1", "tell-her-that-i#o1", "in-my-mind-youre#o1", "still-first-through-the#o1", "you-taught-me-i#o3", "you-never-taught-me#o2", "how-do-i-let#o2", "you-taught-me-i#o4", "you-never-taught-me#o3", "your-little-girl-your#o1", "whatever-years-may-come#o1", "ill-always-be-your#o2", "you-taught-me-i#o5", "how-do-i-learn#o1", "always-your-little-girl#o1"];
 var OFF_OK = {"0": true, "1": true, "2": true, "3": true, "4": false, "5": false, "6": false, "7": false, "8": false, "9": false, "10": false, "11": false, "12": false, "13": false, "14": true, "15": false, "16": false, "17": false, "18": true, "19": false, "20": false, "21": false, "22": false, "23": false, "24": true, "25": false, "26": false, "27": false, "28": false, "29": false, "30": false, "31": true, "32": false, "33": false};
 var REVIEW_IDS = {"ill-always-be-your#o1": true};
-window.KFS_BUILD = "align2-1330";
+window.KFS_BUILD = "align2-1331";
 
 // --- WAV conversion (export/share) ---
 function pcmWavBlob(audioBuf){
