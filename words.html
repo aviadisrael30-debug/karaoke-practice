@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>תרגול מילה־מילה - הוכחת קטע קצר</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background:#f3f0ea; color:#2b2b2b; }
+  .wrap { max-width: 430px; margin: 0 auto; padding: 22px 16px 60px; background:#fffdf9; min-height:100vh; }
+  h1 { font-size: 21px; margin: 0 0 6px; text-align:center; }
+  .sub { font-size: 13px; color:#777; text-align:center; margin: 0 0 18px; }
+  button { display:block; width:100%; padding:15px; margin:9px 0; border:0; border-radius:12px; font-size:17px; font-weight:600; cursor:pointer; background:#2b2b2b; color:#fff; }
+  button.secondary { background:#efe9df; color:#2b2b2b; }
+  button:disabled { opacity:.4; }
+  .hidden { display:none !important; }
+  .wordbox { text-align:center; margin: 18px 0 8px; }
+  .word-he { font-size: 40px; font-weight:700; letter-spacing:1px; }
+  .word-en { font-size: 20px; color:#666; margin-top:6px; direction:ltr; }
+  .pos { text-align:center; color:#999; font-size:13px; margin-bottom:6px; }
+  .err { color:#b00020; font-size:14px; text-align:center; min-height:20px; margin:6px 0; }
+  .note { background:#fff4d6; border:1px solid #e6c76a; border-radius:8px; padding:8px 10px; font-size:13px; color:#8a5a00; margin:10px 0; }
+  .worddots { text-align:center; margin:12px 0; direction:ltr; }
+  .worddots b { display:inline-block; margin:0 4px; padding:4px 8px; border-radius:8px; background:#efe9df; font-weight:600; font-size:14px; }
+  .worddots b.cur { background:#2b2b2b; color:#fff; }
+  .worddots b.done { background:#cfe8cf; }
+  audio { width:100%; margin:8px 0; }
+  .bar { height:6px; background:#eee; border-radius:3px; overflow:hidden; margin:8px 0; }
+  .bar i { display:block; height:100%; width:0; background:#2b2b2b; transition:width .1s linear; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>תרגול מילה־מילה</h1>
+  <p class="sub">הוכחת קטע קצר: שורה אחת, חמש מילים. שומעים כל מילה לאט, מקליטים, ומחברים.</p>
+  <p class="sub" style="font-size:12px">גבולות המילים מחושבים אוטומטית: גבול השורה אומת, הקצוות הפנימיים בקירוב.</p>
+
+  <div id="gate">
+    <div class="note">ניסוי נפרד - לא משנה כלום בדף הקריוקי הרגיל או בהקלטות ששמרת.</div>
+    <input type="file" id="file-input" accept="audio/*" class="hidden">
+    <button class="secondary" id="btn-pick">בחר את קובץ השיר מהטלפון</button>
+    <p class="err" id="song-status"></p>
+    <button id="btn-mic">אפשר מיקרופון והתחל</button>
+    <p class="err" id="err-gate"></p>
+  </div>
+
+  <div id="practice" class="hidden">
+    <p class="pos" id="word-pos"></p>
+    <div class="worddots" id="worddots"></div>
+    <div class="wordbox">
+      <div class="word-he" id="word-he"></div>
+      <div class="word-en" id="word-en"></div>
+    </div>
+    <button class="secondary" id="btn-prompt">▶ שמע את המילה לאט</button>
+    <div class="bar hidden" id="playbar"><i></i></div>
+    <button id="btn-rec">● הקלט את המילה</button>
+    <button id="btn-stop" class="hidden">■ עצור</button>
+    <div class="bar hidden" id="recbar"><i></i></div>
+    <p class="sub hidden" id="reccount"></p>
+    <p class="err" id="err-practice"></p>
+    <div id="review" class="hidden">
+      <p class="sub">ההקלטה שלך למילה הזאת:</p>
+      <audio id="take-player" controls></audio>
+      <button id="btn-approve">אשר ועבור למילה הבאה</button>
+      <button class="secondary" id="btn-retry">נסה שוב</button>
+    </div>
+    <div id="joinbox" class="hidden">
+      <button id="btn-join">חבר את 5 המילים לקטע אחד</button>
+      <div id="joined" class="hidden">
+        <p class="sub">הקטע המחובר (חומר גלם לעריכה, לא תוצאה סופית):</p>
+        <audio id="join-player" controls></audio>
+        <a id="join-dl" class="hidden" download="phrase-take.wav"><button class="secondary">הורד את הקטע</button></a>
+        <div id="exports" class="hidden" style="font-size:13px; margin-top:10px;">
+          <div id="word-exports"></div>
+          <div><a id="meta-dl" href="#" download="phrase-metadata.json">הורד מטה־דאטה (מילים, תזמונים, פרמטרים)</a></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+window.KFS_BUILD = 'words1-1400';
+var PHRASE = {"id":"i-never-had-to#o1","start":45.6,"words":[["I","אַיי"],["never","נֶוֶור"],["had","הֶאד"],["to","טוּ"],["ask","אַאסְק"]],"times":[[0.1,1.59],[1.59,1.88],[1.88,2.62],[2.62,2.92],[2.92,4.72]]};
+var SLOW = 0.55;
+
+function $(id){ return document.getElementById(id); }
+['gate','practice','btn-pick','file-input','song-status','btn-mic','err-gate','word-pos','worddots','word-he','word-en','btn-prompt','playbar','btn-rec','btn-stop','recbar','reccount','err-practice','review','take-player','btn-approve','btn-retry','joinbox','btn-join','joined','join-player','join-dl','exports','word-exports','meta-dl'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
+function E(id){ return window['E_'+id.replace(/-/g,'_')]; }
+function err(el,msg){ el.textContent = msg||''; }
+function show(name){ ['gate','practice'].forEach(function(s){ E(s).classList.toggle('hidden', s!==name); }); }
+
+var ABS = PHRASE.times.map(function(t){ return [PHRASE.start + t[0], PHRASE.start + t[1]]; });
+
+// ---------- song storage (read-only from the main page's db) ----------
+var songBlob = null, songBuf = null, actx = null;
+function ensureCtx(){ try { if (!actx) actx = new (window.AudioContext||window.webkitAudioContext)(); if (actx.state==='suspended') actx.resume(); } catch(e){} return actx; }
+function decodeBlob(blob){
+  return blob.arrayBuffer().then(function(ab){
+    return new Promise(function(res,rej){
+      var ctx = ensureCtx();
+      if (!ctx) return rej(new Error('no ctx'));
+      ctx.decodeAudioData(ab, res, rej);
+    });
+  });
+}
+function idbOpen(name){ return new Promise(function(res,rej){ var r=indexedDB.open(name,1); r.onupgradeneeded=function(){ r.result.createObjectStore('files'); }; r.onsuccess=function(){ res(r.result); }; r.onerror=function(){ rej(r.error); }; }); }
+function idbGet(db,k){ return new Promise(function(res,rej){ var q=db.transaction('files').objectStore('files').get(k); q.onsuccess=function(){ res(q.result||null); }; q.onerror=function(){ rej(q.error); }; }); }
+function idbSet(db,k,v){ return new Promise(function(res,rej){ var tx=db.transaction('files','readwrite'); tx.objectStore('files').put(v,k); tx.oncomplete=function(){ res(); }; tx.onerror=function(){ rej(tx.error); }; }); }
+
+var wordsDbP = idbOpen('karaoke-words-db');
+function setSong(blob, name){
+  songBlob = blob;
+  E('song-status').textContent = 'נטען: ' + name;
+  decodeBlob(blob).then(function(buf){ songBuf = buf; }).catch(function(){ err(E('err-gate'),'לא הצלחתי לפענח את קובץ השיר.'); });
+}
+E('btn-pick').onclick = function(){ E('file-input').click(); };
+E('file-input').onchange = function(){ var f = E('file-input').files[0]; if (f) setSong(f, f.name); };
+// restore the song the main page already stored (read-only)
+idbOpen('karaoke-db').then(function(db){ return idbGet(db,'song'); }).then(function(b){
+  if (b) setSong(b, 'השיר שלך');
+}).catch(function(){});
+
+// ---------- mic ----------
+var micStream = null;
+E('btn-mic').onclick = function(){
+  err(E('err-gate'),'');
+  if (!songBlob){ err(E('err-gate'),'קודם טען את קובץ השיר.'); return; }
+  ensureCtx();
+  navigator.mediaDevices.getUserMedia({audio: {echoCancellation:true, noiseSuppression:true}}).then(function(st){
+    micStream = st; show('practice'); renderWord();
+  }).catch(function(){ err(E('err-gate'),'אין הרשאת מיקרופון. בדוק בהגדרות הדפדפן.'); });
+};
+
+// ---------- time stretch (same algorithm as the verified Node test) ----------
+function stretchOLA(input, rate, factor){
+  var grain = Math.round(rate*0.045); // 45ms: synthetic control keeps f0 within ~20 cents at 130-220Hz
+  var hopIn = Math.round(grain/2);
+  var hopOut = Math.round(hopIn/factor);
+  var win = new Float32Array(grain);
+  for (var i=0;i<grain;i++) win[i] = 0.5*(1-Math.cos(2*Math.PI*i/(grain-1)));
+  var outLen = Math.ceil(input.length/factor) + grain*2;
+  var out = new Float32Array(outLen), norm = new Float32Array(outLen);
+  for (var pos=0, op=0; pos+grain<=input.length; pos+=hopIn, op+=hopOut){
+    for (var i=0;i<grain;i++){ out[op+i] += input[pos+i]*win[i]; norm[op+i] += win[i]; }
+  }
+  for (var i=0;i<outLen;i++){ if (norm[i]>1e-6) out[i]/=norm[i]; }
+  return out.subarray(0, Math.ceil(input.length/factor));
+}
+function wordPromptBuffer(widx){
+  // slice word with context padding, downmix to mono, stretch
+  var a = ABS[widx];
+  var pad = [0.06, 0.12];
+  var sr = songBuf.sampleRate;
+  var s0 = Math.max(0, Math.floor((a[0]-pad[0])*sr));
+  var s1 = Math.min(songBuf.length, Math.ceil((a[1]+pad[1])*sr));
+  var len = s1-s0;
+  var mono = new Float32Array(len);
+  for (var ch=0; ch<songBuf.numberOfChannels; ch++){
+    var d = songBuf.getChannelData(ch);
+    for (var i=0;i<len;i++) mono[i] += d[s0+i]/songBuf.numberOfChannels;
+  }
+  var slow = stretchOLA(mono, sr, SLOW);
+  var buf = ensureCtx().createBuffer(1, slow.length, sr);
+  buf.getChannelData(0).set(slow);
+  return buf;
+}
+
+// ---------- practice flow ----------
+var widx = 0, approved = {}; // widx -> blob
+var playing = false, playSrc = null;
+var recorder = null, recChunks = [], recStopTimer = null;
+
+function stopPlayback(){ if (playSrc){ try{playSrc.stop();}catch(e){} playSrc=null; } playing=false; E('playbar').classList.add('hidden'); }
+
+function renderWord(){
+  stopPlayback();
+  E('word-pos').textContent = 'מילה ' + (widx+1) + ' מתוך ' + PHRASE.words.length;
+  E('word-he').textContent = PHRASE.words[widx][1];
+  E('word-en').textContent = PHRASE.words[widx][0];
+  var dots = '';
+  for (var i=0;i<PHRASE.words.length;i++){
+    var cls = i===widx ? 'cur' : (approved[i] ? 'done' : '');
+    dots += '<b class="'+cls+'">' + PHRASE.words[i][0] + '</b>';
+  }
+  E('worddots').innerHTML = dots;
+  E('review').classList.add('hidden');
+  E('btn-rec').classList.remove('hidden');
+  E('btn-stop').classList.add('hidden');
+  E('recbar').classList.add('hidden');
+  err(E('err-practice'),'');
+  var doneCount = Object.keys(approved).length;
+  E('joinbox').classList.toggle('hidden', doneCount < PHRASE.words.length);
+}
+
+E('btn-prompt').onclick = function(){
+  if (!songBuf){ err(E('err-practice'),'השיר עדיין נטען, נסה שוב בעוד רגע.'); return; }
+  stopPlayback();
+  var ctx = ensureCtx(); if (!ctx) return;
+  var buf = wordPromptBuffer(widx);
+  playSrc = ctx.createBufferSource();
+  playSrc.buffer = buf;
+  playSrc.connect(ctx.destination);
+  var t0 = ctx.currentTime;
+  playing = true;
+  E('playbar').classList.remove('hidden');
+  var bar = E('playbar').querySelector('i');
+  var iv = setInterval(function(){
+    var p = Math.min(100, 100*(ctx.currentTime-t0)/buf.duration);
+    bar.style.width = p + '%';
+    if (p>=100){ clearInterval(iv); }
+  }, 100);
+  playSrc.onended = function(){ clearInterval(iv); stopPlayback(); };
+  playSrc.start();
+};
+
+function pickMime(){
+  var c = ['audio/webm;codecs=opus','audio/webm','audio/mp4','audio/aac','audio/ogg;codecs=opus'];
+  for (var i=0;i<c.length;i++){ try { if (MediaRecorder.isTypeSupported(c[i])) return c[i]; } catch(e){} }
+  return '';
+}
+E('btn-rec').onclick = function(){
+  stopPlayback();
+  var mime = pickMime();
+  if (!mime){ err(E('err-practice'),'הדפדפן לא תומך בהקלטה כאן.'); return; }
+  recChunks = [];
+  try { recorder = new MediaRecorder(micStream, {mimeType: mime, audioBitsPerSecond: 128000}); }
+  catch(e){ err(E('err-practice'),'המיקרופון לא זמין להקלטה כאן.'); return; }
+  recorder.ondataavailable = function(ev){ if (ev.data && ev.data.size) recChunks.push(ev.data); };
+  recorder.onstop = function(){ onTake(new Blob(recChunks, {type: mime})); recChunks=[]; };
+  recorder.start(250);
+  E('btn-rec').classList.add('hidden');
+  E('btn-stop').classList.remove('hidden');
+  E('recbar').classList.remove('hidden');
+  E('reccount').classList.remove('hidden');
+  var barStart = performance.now();
+  var barIv = setInterval(function(){
+    if (!recorder || recorder.state==='inactive'){ clearInterval(barIv); return; }
+    var elapsed = (performance.now()-barStart)/1000;
+    E('recbar').querySelector('i').style.width = Math.min(100, 100*elapsed/8) + '%';
+    E('reccount').textContent = 'מקליט... נעצר אוטומטית אחרי ' + Math.max(0, Math.ceil(8-elapsed)) + ' שניות (אפשר לעצור מקודם)';
+  }, 100);
+  recStopTimer = setTimeout(function(){ if (recorder && recorder.state!=='inactive') recorder.stop(); }, 8000);
+};
+E('btn-stop').onclick = function(){
+  if (recStopTimer){ clearTimeout(recStopTimer); recStopTimer=null; }
+  if (recorder && recorder.state!=='inactive') recorder.stop();
+  E('reccount').classList.add('hidden');
+};
+
+function pcmWavBlob(buf){
+  var n = buf.length, sr = buf.sampleRate;
+  var data = new Float32Array(n);
+  for (var ch=0; ch<buf.numberOfChannels; ch++){
+    var d = buf.getChannelData(ch);
+    for (var i=0;i<n;i++) data[i] += d[i]/buf.numberOfChannels;
+  }
+  var bytes = new ArrayBuffer(44 + n*2), v = new DataView(bytes);
+  function ws(o,s){ for (var i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); }
+  ws(0,'RIFF'); v.setUint32(4, 36+n*2, true); ws(8,'WAVE'); ws(12,'fmt ');
+  v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,sr,true); v.setUint32(28,sr*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true);
+  ws(36,'data'); v.setUint32(40, n*2, true);
+  for (var i=0;i<n;i++){ var x = Math.max(-1, Math.min(1, data[i])); v.setInt16(44+i*2, x*32767, true); }
+  return new Blob([bytes], {type:'audio/wav'});
+}
+
+var currentTake = null;
+function onTake(raw){
+  E('reccount').classList.add('hidden');
+  E('btn-stop').classList.add('hidden');
+  E('btn-rec').classList.remove('hidden');
+  E('recbar').classList.add('hidden');
+  if (!raw.size || raw.size < 500){ err(E('err-practice'),'לא נקלט קול. נסה שוב.'); return; }
+  decodeBlob(raw).then(function(buf){
+    if (!buf.duration || buf.duration < 0.15){ err(E('err-practice'),'לא נקלט קול. נסה שוב.'); return; }
+    currentTake = pcmWavBlob(buf);
+    E('take-player').src = URL.createObjectURL(currentTake);
+    E('review').classList.remove('hidden');
+  }).catch(function(){
+    currentTake = raw;
+    E('take-player').src = URL.createObjectURL(raw);
+    E('review').classList.remove('hidden');
+  });
+}
+
+E('btn-retry').onclick = function(){ currentTake=null; E('review').classList.add('hidden'); };
+E('btn-approve').onclick = function(){
+  if (!currentTake) return;
+  approved[widx] = currentTake;
+  wordsDbP.then(function(db){ return idbSet(db, 'kfs3_wtake_' + PHRASE.id + '_' + widx, currentTake); }).catch(function(){});
+  if (widx < PHRASE.words.length-1){ widx++; renderWord(); }
+  else { renderWord(); }
+};
+
+// ---------- join ----------
+function trimAndGet(buf){
+  // return trimmed Float32Array (energy gate) at buf.sampleRate
+  var sr = buf.sampleRate, n = buf.length;
+  var mono = new Float32Array(n);
+  for (var ch=0; ch<buf.numberOfChannels; ch++){
+    var d = buf.getChannelData(ch);
+    for (var i=0;i<n;i++) mono[i] += d[i]/buf.numberOfChannels;
+  }
+  var win = Math.round(sr*0.02), thresh = 0.006, keep = Math.round(sr*0.25); // conservative: low threshold, wide padding; originals kept immutable
+  function energyAt(i){ var e=0; for (var j=i;j<i+win && j<n;j++) e+=mono[j]*mono[j]; return Math.sqrt(e/win); }
+  var s = 0; while (s+win<n && energyAt(s)<thresh) s+=win;
+  var e = n-win; while (e>s && energyAt(e)<thresh) e-=win;
+  s = Math.max(0, s-keep); e = Math.min(n, e+keep+win);
+  return {data: mono.subarray(s,e), rate: sr};
+}
+E('btn-join').onclick = function(){
+  err(E('err-practice'),'');
+  var bufs = [];
+  var chain = Promise.resolve();
+  for (var i=0;i<PHRASE.words.length;i++){
+    (function(i){
+      chain = chain.then(function(){ return decodeBlob(approved[i]); }).then(function(b){ bufs[i] = trimAndGet(b); });
+    })(i);
+  }
+  chain.then(function(){
+    var sr = bufs[0].rate, xfade = Math.round(sr*0.02); // 20ms de-click only, not a blend
+    var total = 0;
+    bufs.forEach(function(b){ total += b.data.length - xfade; });
+    total += xfade;
+    var out = new Float32Array(total);
+    var pos = 0;
+    bufs.forEach(function(b, bi){
+      var d = b.data;
+      if (bi===0){ out.set(d, 0); pos = d.length - xfade; return; }
+      for (var i=0;i<d.length;i++){
+        var t = i<xfade ? i/xfade : 1;
+        var idx = pos + i;
+        if (idx < out.length) out[idx] = out[idx]*(1-t) + d[i]*t;
+      }
+      pos += d.length - xfade;
+    });
+    var ctx = ensureCtx();
+    var buf = ctx.createBuffer(1, out.length, sr);
+    buf.getChannelData(0).set(out);
+    var wav = pcmWavBlob(buf);
+    var url = URL.createObjectURL(wav);
+    E('join-player').src = url;
+    E('join-dl').classList.remove('hidden');
+    E('join-dl').href = url;
+    E('joined').classList.remove('hidden');
+    wordsDbP.then(function(db){ return idbSet(db, 'kfs3_joined_' + PHRASE.id, wav); }).catch(function(){});
+    // per-word original exports (immutable as approved) + provenance metadata
+    var links = '';
+    for (var wi=0; wi<PHRASE.words.length; wi++){
+      var wurl = URL.createObjectURL(approved[wi]);
+      links += '<div><a href="'+wurl+'" download="word_'+(wi+1)+'_'+PHRASE.words[wi][0]+'.wav">הורד מילה '+(wi+1)+' ('+PHRASE.words[wi][0]+')</a></div>';
+    }
+    E('word-exports').innerHTML = links;
+    var meta = {
+      build: window.KFS_BUILD, phrase: PHRASE.id, created: new Date().toISOString(),
+      stretchRate: SLOW, grainMs: 45, trim: {thresh: 0.006, keepSec: 0.25, reversible: true, originalsKept: true},
+      crossfadeMs: 20,
+      timingProvenance: 'two-run faster-whisper median; line-end boundary user-verified; interior word edges approximate',
+      words: PHRASE.words.map(function(w, i){ return {word: w[0], phonetic: w[1], absStart: ABS[i][0], absEnd: ABS[i][1]}; })
+    };
+    var murl = URL.createObjectURL(new Blob([JSON.stringify(meta, null, 2)], {type:'application/json'}));
+    E('meta-dl').href = murl;
+    E('exports').classList.remove('hidden');
+  }).catch(function(){ err(E('err-practice'),'החיבור נכשל. נסה שוב.'); });
+};
+
+renderWord && null;
+</script>
+</body>
+</html>
