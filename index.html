@@ -21,13 +21,17 @@
   audio { width: 100%; margin: 10px 0 6px; }
   .closing { font-size: 12px; color: #9b968c; text-align: center; margin-top: 22px; line-height: 1.6; }
   .hidden { display: none; }
-  .words { display: flex; justify-content: center; gap: 10px; direction: ltr; flex-wrap: wrap; margin: 18px 0; }
-  .word { text-align: center; padding: 6px 8px; border-radius: 10px; transition: background .12s, transform .12s; }
-  .word .heb { font-size: 24px; font-weight: 700; color: #6b675f; }
-  .word .eng { font-size: 12px; color: #9b968c; margin-top: 2px; }
-  .word.active { background: #dbeafe; transform: scale(1.12); }
-  .word.active .heb { color: #1d4ed8; }
-  .word.sung .heb { color: #1c1a17; }
+  .lines { margin: 18px 0; }
+  .wordrow { display: flex; justify-content: center; gap: 8px; flex-wrap: wrap; }
+  .wordrow.he { direction: rtl; }
+  .wordrow.en { direction: ltr; margin-top: 8px; }
+  .w { padding: 4px 7px; border-radius: 10px; transition: background .12s, transform .12s; }
+  .wordrow.he .w { font-size: 26px; font-weight: 700; color: #4a463f; }
+  .wordrow.en .w { font-size: 14px; color: #8a857c; }
+  .w.active { background: #dbeafe; transform: scale(1.1); }
+  .wordrow.he .w.active { color: #1d4ed8; }
+  .wordrow.en .w.active { color: #1d4ed8; font-weight: 700; }
+  .w.sung { opacity: .6; }
   .countin { position: fixed; inset: 0; background: rgba(20,18,15,.82); display: flex; align-items: center; justify-content: center; z-index: 50; }
   .countin.hidden { display: none; }
   .countin span { font-size: 120px; font-weight: 800; color: #fff; }
@@ -87,7 +91,10 @@
       <span class="pos" id="line-pos">שורה 1 מתוך 34</span>
       <button class="secondary" id="btn-next">הבאה ←</button>
     </div>
-    <div class="words" id="words"></div>
+    <div class="lines">
+      <div class="wordrow he" id="words-he"></div>
+      <div class="wordrow en" id="words-en"></div>
+    </div>
     <p class="cue-note">צביעת המילים היא הדרכה בלבד - שר בקצב שלך</p>
     <button class="secondary" id="btn-play">▶ שמע את השורה באוזניות</button>
     <div class="recbar play hidden" id="playbar"><i></i></div>
