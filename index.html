@@ -48,6 +48,7 @@
   .linenav button { flex: 1; font-size: 14px; padding: 10px; min-height: 44px; margin-top: 0; }
   .linenav .pos { font-size: 14px; color: #7a756c; white-space: nowrap; font-weight: 700; }
   .cue-note { font-size: 12px; color: #9b968c; text-align: center; margin: -4px 0 10px; }
+    .review-note{margin:6px 0 0;font-size:13px;color:#8a5a00;background:#fff4d6;border:1px solid #e6c76a;border-radius:8px;padding:8px 10px;}
   .metrics { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 12px 14px; margin: 12px 0 4px; font-size: 14px; line-height: 2; }
   .metrics .mtip { margin-top: 8px; color: #4a463f; border-top: 1px dashed #bae6fd; padding-top: 8px; }
   .metrics .mdisc { margin-top: 6px; font-size: 11px; color: #9b968c; line-height: 1.5; }
@@ -99,6 +100,7 @@
       <div class="wordrow en" id="words-en"></div>
     </div>
     <p class="cue-note">צביעת המילים היא הדרכה בלבד - שר בקצב שלך</p>
+    <p class="review-note hidden" id="review-note">שים לב: הקטע הזה עדיין בבדיקה - בשיר מושמעות כאן מילים נוספות (בערך 1:30 עד 1:52) שעדיין לא מוצגות. אל תקליט את הקטע הזה עדיין. שאר השורות מוכנות להקלטה.</p>
     <button class="secondary" id="btn-play">▶ שמע את השורה באוזניות</button>
     <div class="recbar play hidden" id="playbar"><i></i></div>
     <div class="calib" id="calib">
@@ -151,7 +153,7 @@
 <script>
 var LEAD = 0.66, TAIL = 2.5;
 function $(id){ return document.getElementById(id); }
-['blocked','gate','ready','review','done','btn-pick','file-input','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
+['blocked','gate','ready','review','done','btn-pick','file-input','review-note','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
 function E(id){ return window['E_'+id.replace(/-/g,'_')]; }
 
 function show(name){ ['gate','ready','review','done'].forEach(function(s){ E(s).classList.toggle('hidden', s!==name); }); }
@@ -167,12 +169,14 @@ function idbSet(k,v){ return new Promise(function(res,rej){ var tx=idb.transacti
 var songBlob = null, songUrl = null;
 var micStream = null;
 var lineIdx = 0;
-try { lineIdx = Math.max(parseInt(localStorage.getItem('kfs_line')||'0',10)||0, 0); } catch(e){}
-function takeKey(i){ return 'kfs_take_'+i; }
-function offKey(i){ return 'kfs_off_'+i; }
+function uid(i){ return LINES[i].id; }
+function takeKey(i){ return 'kfs2_take_' + uid(i); }
+function draftKey(i){ return 'kfs2_draft_' + uid(i); }
+function apprKey(i){ return 'kfs2_appr_' + uid(i); }
+function offKey(i){ return 'kfs2_off_' + uid(i); }
 function getOff(i){ try { return parseFloat(localStorage.getItem(offKey(i)))||0; } catch(e){ return 0; } }
 function setOff(i,v){ try { localStorage.setItem(offKey(i), String(v)); } catch(e){} }
-function saveLineIdx(){ try { localStorage.setItem('kfs_line', String(lineIdx)); } catch(e){} }
+function saveLineIdx(){ try { localStorage.setItem('kfs2_line', uid(lineIdx)); } catch(e){} }
 
 function b64ToBlob(b64,mime){
   var bin = atob(b64), n = bin.length, u8 = new Uint8Array(n);
@@ -196,12 +200,69 @@ function migrateOldOffset(){
   } catch(e){}
 }
 
+// one-time migration of v1 numeric-index keys to stable per-line IDs (copy only; old keys are never deleted)
+function migrateV1(){
+  var log = {ts: Date.now(), migrated: [], archived: [], unknown: []};
+  try {
+    for (var i=0;i<LEGACY_IDS.length;i++){
+      var id = LEGACY_IDS[i];
+      var ap = localStorage.getItem('kfs_appr_'+i);
+      if (ap!=null && localStorage.getItem(apprKey(i))==null){ localStorage.setItem(apprKey(i), ap); log.migrated.push('kfs_appr_'+i); }
+      var of = localStorage.getItem('kfs_off_'+i);
+      if (of!=null){
+        if (OFF_OK[i] && localStorage.getItem(offKey(i))==null){ localStorage.setItem(offKey(i), of); log.migrated.push('kfs_off_'+i); }
+        else if (!OFF_OK[i]){ log.archived.push('kfs_off_'+i); }
+      }
+    }
+    var li = localStorage.getItem('kfs_line');
+    if (li!=null && localStorage.getItem('kfs2_line')==null){
+      var oi = parseInt(li,10)||0;
+      if (LEGACY_IDS[oi]){ localStorage.setItem('kfs2_line', LEGACY_IDS[oi]); log.migrated.push('kfs_line'); }
+    }
+    for (var k=0;k<localStorage.length;k++){
+      var key = localStorage.key(k);
+      var m = /^kfs_(appr|off)_(\d+)$/.exec(key);
+      if (m && !(+m[2]>=0 && +m[2]<LEGACY_IDS.length)) log.unknown.push(key);
+    }
+  } catch(e){}
+  var chain = Promise.resolve();
+  LEGACY_IDS.forEach(function(id, i){
+    chain = chain.then(function(){ return idbGet('kfs_take_'+i); }).then(function(b){
+      if (!b) return; return idbGet(takeKey(i)).then(function(ex){ if (!ex){ log.migrated.push('kfs_take_'+i); return idbSet(takeKey(i), b); } });
+    }).then(function(){ return idbGet('kfs_draft_'+i); }).then(function(b){
+      if (!b) return; return idbGet(draftKey(i)).then(function(ex){ if (!ex){ log.migrated.push('kfs_draft_'+i); return idbSet(draftKey(i), b); } });
+    }).catch(function(){});
+  });
+  return chain.then(function(){
+    return new Promise(function(res){
+      try {
+        var tx = idb.transaction('files','readonly');
+        var rq = tx.objectStore('files').getAllKeys();
+        rq.onsuccess = function(){
+          (rq.result||[]).forEach(function(key){
+            key = String(key);
+            var m = /^kfs_(take|draft)_(\d+)$/.exec(key);
+            if (m && !(+m[2]>=0 && +m[2]<LEGACY_IDS.length)) log.unknown.push(key);
+          });
+          try { if (!localStorage.getItem('kfs2_miglog')) localStorage.setItem('kfs2_miglog', JSON.stringify(log)); } catch(e){}
+          res();
+        };
+        rq.onerror = function(){ try { if (!localStorage.getItem('kfs2_miglog')) localStorage.setItem('kfs2_miglog', JSON.stringify(log)); } catch(e){} res(); };
+      } catch(e){ res(); }
+    });
+  });
+}
+
 // --- line rendering ---
 function lineSeg(){
   var L = LINES[lineIdx], off = getOff(lineIdx);
   var start = L.start + off;
-  var endCap = (L.next!=null) ? Math.min(L.end + TAIL, L.next - 0.15) : L.end + TAIL;
-  if (endCap < L.end + 0.6) endCap = L.end + 0.6;
+  // never play past 0.10s before the next line's first sung word; allow up to 1.0s decay tail otherwise;
+  // never clip more than 0.25s of this line's last word
+  var cap = (L.next!=null) ? (L.next - 0.10) : (L.end + 1.0);
+  var endCap = Math.min(L.end + 1.0, Math.max(cap, L.end - 0.25));
+  // hard guarantee: never play into the next line's first word, whatever the data
+  if (L.next!=null && endCap > L.next - 0.02) endCap = Math.max(L.next - 0.02, Math.max(0,L.start) + 0.3);
   return { start: Math.max(0,start), playEnd: endCap, dur: endCap - Math.max(0,start) };
 }
 
@@ -234,19 +295,25 @@ function renderLine(){
   E('playbar').classList.add('hidden'); E('recbar').classList.add('hidden'); E('reclabel').classList.add('hidden');
   E('btn-stop').classList.add('hidden'); E('btn-rec').classList.remove('hidden'); E('btn-play').disabled=false;
   err(E('err-ready'),'');
+  E('review-note').classList.toggle('hidden', !REVIEW_UNITS[lineIdx]);
+  E('btn-rec').disabled = !!REVIEW_UNITS[lineIdx];
   // saved take banner for this line
   E('saved').classList.add('hidden');
-  idbGet(takeKey(lineIdx)).then(function(b){ return b || idbGet('kfs_draft_'+lineIdx); }).then(function(b){
+  idbGet(takeKey(lineIdx)).then(function(b){ return b || idbGet(draftKey(lineIdx)); }).then(function(b){
     if (b){ E('saved-player').src = URL.createObjectURL(b); E('saved').classList.remove('hidden'); }
   }).catch(function(){});
   // progress: approved lines
   try {
     var ap=0;
-    for (var i2=0;i2<LINES.length;i2++){ if (localStorage.getItem('kfs_appr_'+i2)==='1') ap++; }
+    for (var i2=0;i2<LINES.length;i2++){ if (localStorage.getItem(apprKey(i2))==='1') ap++; }
     E('progress-line').textContent = ap>0 ? ('אושרו ' + ap + ' מתוך ' + LINES.length + ' שורות') : '';
   } catch(e){}
 }
-var LINES = [{"words":[["how","הַאוּ"],["do","דוּ"],["I","אַיי"],["say","סֶיי"],["goodbye","גוּד־בַּיי"]],"times":[[0.66,2.06],[2.06,2.32],[2.32,2.56],[2.56,3.04],[3.04,3.96]],"start":10.4,"end":14.36,"next":14.36},{"words":[["to","טוּ"],["someone","סַאמוֹוָאן"],["who","הוּ"],["was","ווָז"],["my","מַיי"],["whole","הוֹול"],["world","וֶורְלְד"]],"times":[[0.66,3.48],[3.48,4.3],[4.3,4.86],[4.86,5.28],[5.28,6.08],[6.08,6.88],[6.88,10.64]],"start":13.7,"end":24.34,"next":36.22},{"words":[["you","יוּ"],["were","וֶור"],["my","מַיי"],["home","הוֹום"],["you","יוּ"],["were","וֶור"],["my","מַיי"],["shelter","שֶׁלְטֶר"]],"times":[[0.66,1.9],[1.9,2.18],[2.18,2.52],[2.52,3.14],[3.78,5.38],[5.38,5.62],[5.62,5.94],[5.94,7.0]],"start":35.56,"end":42.56,"next":42.559999999999995},{"words":[["always","אוֹלְוֶייז"],["first","פֶרְסְט"],["through","תְּרוּ"],["the","דֶה"],["door","דוֹר"]],"times":[[0.66,2.18],[2.18,2.6],[2.6,2.98],[2.98,3.14],[3.14,3.74]],"start":41.9,"end":45.64,"next":46.54},{"words":[["I","אַיי"],["never","נֶוֶור"],["had","הֶאד"],["to","טוּ"],["ask","אַאסְק"]],"times":[[0.66,1.28],[1.28,1.62],[1.62,2.36],[2.36,2.66],[2.66,4.54]],"start":45.88,"end":50.42,"next":52.8},{"words":[["you","יוּ"],["laughed","לַאפְט"],["the","דֶה"],["whole","הוֹול"],["house","הַאוּס"],["answered","אַאנְסֶרְד"]],"times":[[0.66,0.96],[0.96,1.26],[0.66,1.52],[1.52,1.96],[1.96,2.8],[2.8,3.96]],"start":52.14,"end":56.1,"next":57.099999999999994},{"words":[["you","יוּ"],["danced","דַאנְסְט"],["like","לַייק"],["time","טַיימ"],["could","כּוּד"],["wait","וֶוייט"]],"times":[[0.66,1.42],[0.66,1.42],[1.42,1.9],[1.9,4.38],[4.38,5.52],[5.52,6.92]],"start":56.44,"end":63.36,"next":64.1},{"words":[["you","יוּ"],["wanted","וֶונְטֶד"],["rest","רֶסְט"],["beside","בִּיסַייד"],["her","הֶר"]],"times":[[0.66,1.3],[1.3,1.64],[1.64,2.1],[2.1,2.76],[2.76,3.72]],"start":63.44,"end":67.16,"next":67.16},{"words":[["we","ווִי"],["wanted","וֶונְטֶד"],["you","יוּ"],["to","טוּ"],["stay","סְטֶיי"]],"times":[[0.66,1.62],[1.62,2.0],[2.0,2.42],[2.42,2.86],[2.86,5.12]],"start":66.5,"end":71.62,"next":74.06},{"words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.66,1.14],[1.14,1.44],[1.44,1.64],[1.64,1.9],[1.9,2.0],[2.0,2.32],[2.32,2.96]],"start":73.4,"end":76.36,"next":77.1},{"words":[["you","יוּ"],["never","נֶוֶור"],["taught","טוֹט"],["me","מִי"],["goodbye","גוּד־בַּיי"]],"times":[[0.66,1.56],[1.56,1.92],[1.92,2.34],[2.34,2.8],[2.8,4.02]],"start":76.44,"end":80.46,"next":80.46},{"words":[["how","הַאוּ"],["do","דוּ"],["I","אַיי"],["let","לֶט"],["go","גוֹו"],["of","אֶב"],["the","דֶה"],["hand","הַאנְד"],["that","דַאט"],["held","הֶלְד"],["me","מִי"],["all","אוֹל"],["my","מַיי"],["life","לַייף"]],"times":[[0.66,0.82],[0.82,1.9],[1.9,2.12],[2.12,2.3],[2.3,2.64],[2.64,2.8],[2.8,3.02],[3.02,4.02],[4.02,4.32],[4.32,5.5],[5.5,5.84],[5.84,6.3],[6.3,6.7],[6.7,7.94]],"start":79.8,"end":87.74,"next":88.24},{"words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.66,0.76],[0.76,8.98],[8.98,10.96],[10.96,11.18],[11.18,11.52],[11.52,11.76],[11.76,22.86]],"start":87.58,"end":110.44,"next":114.75999999999999},{"words":[["i'll","אַייל"],["always","אוֹלְוֶייז"],["be","בִּי"],["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"]],"times":[[0.66,1.16],[0.66,1.16],[1.16,1.66],[1.66,2.26],[2.26,2.74],[2.74,3.58]],"start":114.1,"end":117.68,"next":117.67999999999999},{"words":[["when","וֶוֶן"],["she","שִׁי"],["was","ווָז"],["gone","גוֹן"],["a","אֶ"],["part","פַּארְט"],["of","אֶב"],["you","יוּ"],["went","וֶונְט"],["with","וִית"],["her","הֶר"]],"times":[[0.66,1.38],[1.38,1.66],[1.66,1.8],[1.8,2.2],[2.56,2.7],[2.7,2.98],[2.98,3.22],[3.22,3.38],[3.38,3.6],[3.6,3.84],[3.84,4.12]],"start":117.02,"end":121.14,"next":121.14},{"words":[["the","דֶה"],["strongest","סְטְרוֹנְגֶסְט"],["man","מֶאן"],["i'd","אַייד"],["ever","אֶבֶר"],["known","נוֹון"],["was","ווָז"],["growing","גְרוֹוִינְג"],["weaker","וִויקֶר"],["day","דֶיי"],["by","בַּיי"],["day","דֶיי"]],"times":[[0.66,0.92],[0.92,1.28],[1.28,1.64],[1.64,1.94],[1.94,2.14],[2.14,2.48],[2.48,2.7],[2.7,3.1],[3.1,3.42],[3.42,3.8],[3.8,3.96],[3.96,4.24]],"start":120.48,"end":124.72,"next":124.72},{"words":[["I","אַיי"],["held","הֶלְד"],["on","אוֹן"],["to","טוּ"],["your","יוֹר"],["laughter","לַאפְטֶר"],["when","וֶוֶן"],["the","דֶה"],["present","פְּרֶזֶנְט"],["hurt","הֶרְט"],["to","טוּ"],["face","פֶייס"]],"times":[[0.66,0.88],[0.88,1.12],[1.12,1.32],[1.32,1.48],[1.48,1.74],[1.74,2.26],[2.26,2.76],[2.76,3.02],[3.02,3.34],[3.34,3.66],[3.66,3.86],[3.86,4.1]],"start":124.06,"end":128.16,"next":128.16},{"words":[["forgive","פוֹרגִיב"],["me","מִי"],["for","פוֹר"],["not","נָאט"],["knowing","נוֹוִינְג"],["how","הַאוּ"],["to","טוּ"],["stand","סְטֶאנְד"],["before","בִּיפוֹר"],["that","דַאט"],["pain","פֶּיין"]],"times":[[0.66,1.06],[1.06,1.26],[1.26,1.5],[1.5,1.72],[1.72,2.1],[2.1,2.38],[2.38,2.52],[2.52,2.76],[2.76,3.2],[3.2,3.44],[3.44,3.74]],"start":127.5,"end":131.24,"next":130.94},{"words":[["my","מַיי"],["love","לַאב"],["was","ווָז"],["there","דֶר"],["through","תְּרוּ"],["all","אוֹל"],["of","אֶב"],["it","אִיט"],["though","דוֹו"],["words","וֶורְדְז"],["were","וֶור"],["hard","הַארְד"],["to","טוּ"],["find","פַּיינְד"]],"times":[[0.66,1.1],[1.1,1.74],[1.74,1.94],[1.94,2.16],[2.16,2.4],[2.4,2.64],[2.64,2.86],[2.86,3.02],[3.14,3.24],[3.24,3.46],[3.46,3.66],[3.66,3.9],[3.9,4.08],[4.08,4.64]],"start":130.28,"end":134.92,"next":134.92},{"words":[["I","אַיי"],["hope","הוֹופּ"],["you","יוּ"],["felt","פֶלְט"],["it","אִיט"],["even","אִיבֶן"],["then","דֶן"],["beneath","בִּינִית"],["the","דֶה"],["words","וֶורְדְז"],["I","אַיי"],["kept","קֶפְּט"],["inside","אִינְסַייד"]],"times":[[0.66,1.04],[1.04,1.22],[1.22,1.38],[1.38,1.66],[1.66,1.9],[1.9,2.26],[2.26,2.62],[2.26,2.62],[2.62,3.12],[3.12,3.38],[3.38,3.58],[3.58,3.84],[3.84,4.16]],"start":134.26,"end":138.42,"next":143.04},{"words":[["tell","טֶל"],["her","הֶר"],["that","דַאט"],["I","אַיי"],["love","לַאב"],["her","הֶר"],["tell","טֶל"],["her","הֶר"],["I","אַיי"],["miss","מִיס"],["her","הֶר"],["too","טוּ"]],"times":[[0.66,1.38],[1.38,1.88],[1.88,2.34],[2.34,2.66],[2.66,3.2],[3.2,3.52],[3.52,4.7],[4.7,4.96],[4.96,5.3],[5.3,5.72],[5.72,6.12],[6.12,6.64]],"start":142.38,"end":149.02,"next":149.02},{"words":[["in","אִין"],["my","מַיי"],["mind","מַיינְד"],["you're","יוּר"],["still","סְטִיל"],["laughing","לַאפִינְג"],["still","סְטִיל"],["dancing","דַאנְסִינְג"]],"times":[[0.66,1.36],[1.36,1.82],[1.82,2.74],[2.74,3.14],[3.14,3.58],[3.58,4.4],[5.16,5.32],[5.32,6.04]],"start":148.36,"end":154.4,"next":154.4},{"words":[["still","סְטִיל"],["first","פֶרְסְט"],["through","תְּרוּ"],["the","דֶה"],["door","דוֹר"]],"times":[[0.66,1.56],[1.56,2.92],[2.92,4.08],[4.08,4.94],[4.94,5.66]],"start":153.74,"end":159.4,"next":160.02},{"words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.66,1.2],[1.2,1.48],[1.48,1.68],[1.68,1.96],[1.96,2.1],[2.1,2.4],[2.4,2.98]],"start":159.36,"end":162.34,"next":163.02},{"words":[["you","יוּ"],["never","נֶוֶור"],["taught","טוֹט"],["me","מִי"],["goodbye","גוּד־בַּיי"]],"times":[[0.66,1.66],[1.66,2.04],[2.04,2.44],[2.44,2.9],[2.9,3.78]],"start":162.36,"end":166.14,"next":167.01},{"words":[["how","הַאוּ"],["do","דוּ"],["I","אַיי"],["let","לֶט"],["go","גוֹו"],["of","אֶב"],["the","דֶה"],["hand","הַאנְד"],["that","דַאט"],["held","הֶלְד"],["me","מִי"],["all","אוֹל"],["my","מַיי"],["life","לַייף"]],"times":[[0.66,1.09],[1.09,1.39],[1.39,1.59],[1.59,1.79],[1.79,2.07],[2.07,2.25],[2.25,2.43],[2.43,3.49],[3.49,3.75],[3.75,4.89],[4.89,5.31],[5.31,5.79],[5.79,6.17],[6.17,6.67]],"start":166.35,"end":173.02,"next":174.24},{"words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.66,0.76],[0.76,0.98],[0.98,1.2],[1.2,1.46],[1.46,1.6],[1.6,1.92],[1.92,2.6]],"start":173.58,"end":176.18,"next":176.18},{"words":[["you","יוּ"],["never","נֶוֶור"],["taught","טוֹט"],["me","מִי"],["goodbye","גוּד־בַּיי"]],"times":[[0.66,2.16],[2.16,2.56],[2.56,3.04],[3.04,3.56],[3.56,4.88]],"start":175.52,"end":180.4,"next":182.7},{"words":[["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"],["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"]],"times":[[0.66,1.74],[1.74,2.04],[2.04,2.66],[2.86,3.02],[3.02,3.38],[3.38,3.72]],"start":182.04,"end":185.76,"next":185.76},{"words":[["whatever","וֶוטֶבֶר"],["years","יִירְז"],["may","מֶיי"],["come","כַאם"],["and","אֶנְד"],["go","גוֹו"]],"times":[[0.66,1.08],[1.08,1.68],[1.68,2.08],[2.08,2.38],[2.38,2.96],[2.96,6.06]],"start":185.1,"end":191.16,"next":196.78},{"words":[["i'll","אַייל"],["always","אוֹלְוֶייז"],["be","בִּי"],["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"]],"times":[[0.66,1.74],[0.66,1.74],[1.74,2.3],[2.3,2.76],[2.76,3.42],[3.42,5.36]],"start":196.12,"end":201.48,"next":203.64},{"words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.66,2.06],[2.06,2.66],[2.66,3.72],[3.72,4.72],[4.72,5.56],[5.56,6.52],[6.52,8.7]],"start":202.98,"end":211.68,"next":212.48},{"words":[["how","הַאוּ"],["do","דוּ"],["I","אַיי"],["learn","לֶרְן"],["that","דַאט"],["now","נַאוּ"]],"times":[[0.66,1.9],[1.9,2.12],[2.12,2.7],[2.7,3.78],[3.78,4.66],[4.66,6.12]],"start":211.82,"end":217.94,"next":222.54},{"words":[["always","אוֹלְוֶייז"],["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"]],"times":[[0.66,2.06],[3.32,5.68],[5.68,8.9],[8.9,9.88]],"start":221.88,"end":231.76,"next":null}];
+var LINES = [{"id":"how-do-i-say#o1","words":[["how","הַאוּ"],["do","דוּ"],["I","אַיי"],["say","סֶיי"],["goodbye","גוּד־בַּיי"]],"times":[[0.66,2.06],[2.06,2.34],[2.34,2.56],[2.56,3.04],[3.04,3.96]],"start":10.4,"end":14.36,"next":14.36},{"id":"to-someone-who-was#o1","words":[["to","טוּ"],["someone","סַאמוֹוָאן"],["who","הוּ"],["was","ווָז"],["my","מַיי"],["whole","הוֹול"],["world","וֶורְלְד"]],"times":[[0.1,2.94],[2.94,3.76],[3.76,4.28],[4.28,4.7],[4.7,5.5],[5.5,6.36],[6.36,10.07]],"start":14.26,"end":24.33,"next":36.22},{"id":"you-were-my-home#o1","words":[["you","יוּ"],["were","וֶור"],["my","מַיי"],["home","הוֹום"],["you","יוּ"],["were","וֶור"],["my","מַיי"],["shelter","שֶׁלְטֶר"]],"times":[[0.66,1.9],[1.9,2.16],[2.16,2.52],[2.52,3.14],[3.39,5.38],[5.38,5.62],[5.62,5.94],[5.94,7.03]],"start":35.56,"end":42.59,"next":42.6},{"id":"always-first-through-the#o1","words":[["always","אוֹלְוֶייז"],["first","פֶרְסְט"],["through","תְּרוּ"],["the","דֶה"],["door","דוֹר"]],"times":[[0.1,1.58],[1.58,2.0],[2.0,2.38],[2.38,2.56],[2.56,3.2]],"start":42.5,"end":45.7,"next":45.7},{"id":"i-never-had-to#o1","words":[["I","אַיי"],["never","נֶוֶור"],["had","הֶאד"],["to","טוּ"],["ask","אַאסְק"]],"times":[[0.1,1.59],[1.59,1.88],[1.88,2.62],[2.62,2.92],[2.92,4.72]],"start":45.6,"end":50.32,"next":50.32},{"id":"you-laughed-the-whole#o1","words":[["you","יוּ"],["laughed","לַאפְט"],["the","דֶה"],["whole","הוֹול"],["house","הַאוּס"],["answered","אַאנְסֶרְד"]],"times":[[0.1,0.72],[0.72,1.72],[1.72,3.42],[3.42,3.86],[3.86,4.72],[4.72,5.93]],"start":50.22,"end":56.15,"next":56.15},{"id":"you-danced-like-time#o1","words":[["you","יוּ"],["danced","דַאנְסְט"],["like","לַייק"],["time","טַיימ"],["could","כּוּד"],["wait","וֶוייט"]],"times":[[0.1,1.01],[1.01,1.45],[1.45,2.06],[2.06,3.78],[4.22,5.67],[5.67,7.09]],"start":56.05,"end":63.14,"next":63.8},{"id":"you-wanted-rest-beside#o1","words":[["you","יוּ"],["wanted","וֶונְטֶד"],["rest","רֶסְט"],["beside","בִּיסַייד"],["her","הֶר"]],"times":[[0.33,1.03],[1.03,1.39],[1.39,1.84],[1.84,2.51],[2.51,3.38]],"start":63.47,"end":66.85,"next":66.87},{"id":"we-wanted-you-to#o1","words":[["we","ווִי"],["wanted","וֶונְטֶד"],["you","יוּ"],["to","טוּ"],["stay","סְטֶיי"]],"times":[[0.1,1.11],[1.11,1.5],[1.5,1.91],[1.91,2.35],[2.35,4.75]],"start":66.77,"end":71.52,"next":73.79},{"id":"you-taught-me-i#o1","words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.66,1.17],[1.17,1.49],[1.49,1.69],[1.69,1.93],[1.93,2.03],[2.03,2.36],[2.36,2.98]],"start":73.13,"end":76.11,"next":76.12},{"id":"you-never-taught-me#o1","words":[["you","יוּ"],["never","נֶוֶור"],["taught","טוֹט"],["me","מִי"],["goodbye","גוּד־בַּיי"]],"times":[[0.1,1.74],[1.74,2.1],[2.1,2.49],[2.49,2.97],[2.97,4.24]],"start":76.02,"end":80.26,"next":80.26},{"id":"how-do-i-let#o1","words":[["how","הַאוּ"],["do","דוּ"],["I","אַיי"],["let","לֶט"],["go","גוֹו"],["of","אֶב"],["the","דֶה"],["hand","הַאנְד"],["that","דַאט"],["held","הֶלְד"],["me","מִי"],["all","אוֹל"],["my","מַיי"],["life","לַייף"]],"times":[[0.1,0.99],[0.99,1.31],[1.31,1.54],[1.54,1.7],[1.7,2.01],[2.01,2.2],[2.2,2.43],[2.43,3.42],[3.42,3.74],[3.74,4.91],[4.91,5.27],[5.27,5.71],[5.71,6.12],[6.12,7.32]],"start":80.16,"end":87.48,"next":87.48},{"id":"you-taught-me-i#o2","words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.1,0.72],[0.72,0.92],[0.92,1.12],[1.12,1.42],[1.42,1.52],[1.52,1.92],[1.92,2.61]],"start":87.38,"end":89.99,"next":112.0},{"id":"ill-always-be-your#o1","words":[["i'll","אַייל"],["always","אוֹלְוֶייז"],["be","בִּי"],["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"]],"times":[[0.66,2.66],[2.66,3.86],[3.86,4.12],[4.12,4.92],[4.98,5.36],[5.36,6.31]],"start":111.34,"end":117.65,"next":117.65},{"id":"when-she-was-gone#o1","words":[["when","וֶוֶן"],["she","שִׁי"],["was","ווָז"],["gone","גוֹן"],["a","אֶ"],["part","פַּארְט"],["of","אֶב"],["you","יוּ"],["went","וֶונְט"],["with","וִית"],["her","הֶר"]],"times":[[0.1,0.65],[0.65,0.87],[0.87,1.09],[1.09,1.49],[1.59,1.91],[1.91,2.21],[2.21,2.47],[2.47,2.61],[2.61,2.83],[2.83,3.09],[3.09,3.39]],"start":117.55,"end":120.94,"next":120.94},{"id":"the-strongest-man-id#o1","words":[["the","דֶה"],["strongest","סְטְרוֹנְגֶסְט"],["man","מֶאן"],["i'd","אַייד"],["ever","אֶבֶר"],["known","נוֹון"],["was","ווָז"],["growing","גְרוֹוִינְג"],["weaker","וִויקֶר"],["day","דֶיי"],["by","בַּיי"],["day","דֶיי"]],"times":[[0.1,0.33],[0.33,0.69],[0.69,1.05],[1.05,1.35],[1.35,1.58],[1.58,1.89],[1.89,2.1],[2.1,2.5],[2.5,2.84],[2.84,3.2],[3.2,3.39],[3.39,3.67]],"start":120.84,"end":124.51,"next":124.51},{"id":"i-held-on-to#o1","words":[["I","אַיי"],["held","הֶלְד"],["on","אוֹן"],["to","טוּ"],["your","יוֹר"],["laughter","לַאפְטֶר"],["when","וֶוֶן"],["the","דֶה"],["present","פְּרֶזֶנְט"],["hurt","הֶרְט"],["to","טוּ"],["face","פֶייס"]],"times":[[0.1,0.29],[0.29,0.53],[0.53,0.73],[0.73,0.9],[0.9,1.14],[1.14,1.75],[1.75,2.17],[2.17,2.41],[2.41,2.79],[2.79,3.07],[3.07,3.28],[3.28,3.5]],"start":124.41,"end":127.91,"next":127.91},{"id":"forgive-me-for-not#o1","words":[["forgive","פוֹרגִיב"],["me","מִי"],["for","פוֹר"],["not","נָאט"],["knowing","נוֹוִינְג"],["how","הַאוּ"],["to","טוּ"],["stand","סְטֶאנְד"],["before","בִּיפוֹר"],["that","דַאט"],["pain","פֶּיין"]],"times":[[0.1,0.5],[0.5,0.75],[0.75,0.95],[0.95,1.17],[1.17,1.55],[1.55,1.83],[1.83,1.98],[1.98,2.22],[2.22,2.66],[2.66,2.89],[2.89,3.33]],"start":127.81,"end":131.14,"next":131.14},{"id":"my-love-was-there#o1","words":[["my","מַיי"],["love","לַאב"],["was","ווָז"],["there","דֶר"],["through","תְּרוּ"],["all","אוֹל"],["of","אֶב"],["it","אִיט"],["though","דוֹו"],["words","וֶורְדְז"],["were","וֶור"],["hard","הַארְד"],["to","טוּ"],["find","פַּיינְד"]],"times":[[0.1,0.49],[0.49,0.76],[0.76,0.96],[0.96,1.19],[1.19,1.4],[1.4,1.66],[1.66,1.86],[1.86,2.03],[2.06,2.24],[2.24,2.47],[2.47,2.68],[2.68,2.92],[2.92,3.08],[3.08,3.64]],"start":131.04,"end":134.68,"next":134.68},{"id":"i-hope-you-felt#o1","words":[["I","אַיי"],["hope","הוֹופּ"],["you","יוּ"],["felt","פֶלְט"],["it","אִיט"],["even","אִיבֶן"],["then","דֶן"],["beneath","בִּינִית"],["the","דֶה"],["words","וֶורְדְז"],["I","אַיי"],["kept","קֶפְּט"],["inside","אִינְסַייד"]],"times":[[0.1,0.48],[0.48,0.66],[0.66,0.84],[0.84,1.12],[1.12,1.36],[1.36,1.7],[1.7,1.98],[1.98,2.34],[2.34,2.56],[2.56,2.82],[2.82,3.04],[3.04,3.3],[3.3,3.6]],"start":134.58,"end":138.18,"next":142.83},{"id":"tell-her-that-i#o1","words":[["tell","טֶל"],["her","הֶר"],["that","דַאט"],["I","אַיי"],["love","לַאב"],["her","הֶר"],["tell","טֶל"],["her","הֶר"],["I","אַיי"],["miss","מִיס"],["her","הֶר"],["too","טוּ"]],"times":[[0.66,1.35],[1.35,1.88],[1.88,2.32],[2.32,2.63],[2.63,3.17],[3.17,3.56],[3.56,4.68],[4.68,4.94],[4.94,5.27],[5.27,5.71],[5.71,6.13],[6.13,6.61]],"start":142.17,"end":148.78,"next":148.78},{"id":"in-my-mind-youre#o1","words":[["in","אִין"],["my","מַיי"],["mind","מַיינְד"],["you're","יוּר"],["still","סְטִיל"],["laughing","לַאפִינְג"],["still","סְטִיל"],["dancing","דַאנְסִינְג"]],"times":[[0.1,0.83],[0.83,1.28],[1.28,2.14],[2.38,2.61],[2.61,3.02],[3.02,3.8],[4.26,4.75],[4.75,5.48]],"start":148.68,"end":154.16,"next":154.68},{"id":"still-first-through-the#o1","words":[["still","סְטִיל"],["first","פֶרְסְט"],["through","תְּרוּ"],["the","דֶה"],["door","דוֹר"]],"times":[[0.26,0.66],[0.66,1.76],[1.76,3.32],[3.32,4.08],[4.08,4.68]],"start":154.42,"end":159.1,"next":159.54},{"id":"you-taught-me-i#o3","words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.22,1.02],[1.02,1.29],[1.29,1.5],[1.5,1.74],[1.74,1.89],[1.89,2.19],[2.19,2.86]],"start":159.32,"end":162.18,"next":163.18},{"id":"you-never-taught-me#o2","words":[["you","יוּ"],["never","נֶוֶור"],["taught","טוֹט"],["me","מִי"],["goodbye","גוּד־בַּיי"]],"times":[[0.66,1.26],[1.26,1.66],[1.66,2.06],[2.06,2.5],[2.5,3.3]],"start":162.52,"end":165.82,"next":166.3},{"id":"how-do-i-let#o2","words":[["how","הַאוּ"],["do","דוּ"],["I","אַיי"],["let","לֶט"],["go","גוֹו"],["of","אֶב"],["the","דֶה"],["hand","הַאנְד"],["that","דַאט"],["held","הֶלְד"],["me","מִי"],["all","אוֹל"],["my","מַיי"],["life","לַייף"]],"times":[[0.24,1.14],[1.14,1.43],[1.43,1.67],[1.67,1.84],[1.84,2.11],[2.11,2.32],[2.32,2.5],[2.5,3.52],[3.52,3.83],[3.83,4.98],[4.98,5.38],[5.38,5.86],[5.86,6.2],[6.2,7.34]],"start":166.06,"end":173.4,"next":174.0},{"id":"you-taught-me-i#o4","words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.3,0.37],[0.37,0.64],[0.64,0.86],[0.86,1.12],[1.12,1.26],[1.26,1.56],[1.56,2.25]],"start":173.7,"end":175.95,"next":175.97},{"id":"you-never-taught-me#o3","words":[["you","יוּ"],["never","נֶוֶור"],["taught","טוֹט"],["me","מִי"],["goodbye","גוּד־בַּיי"]],"times":[[0.1,1.61],[1.61,2.04],[2.04,2.44],[2.44,2.95],[2.95,4.26]],"start":175.87,"end":180.13,"next":183.0},{"id":"your-little-girl-your#o1","words":[["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"],["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"]],"times":[[0.66,1.26],[1.26,1.56],[1.56,2.26],[2.26,2.46],[2.46,2.86],[2.86,3.21]],"start":182.34,"end":185.55,"next":185.55},{"id":"whatever-years-may-come#o1","words":[["whatever","וֶוטֶבֶר"],["years","יִירְז"],["may","מֶיי"],["come","כַאם"],["and","אֶנְד"],["go","גוֹו"]],"times":[[0.1,0.45],[0.45,1.05],[1.05,1.55],[1.55,1.85],[1.85,2.35],[2.35,4.45]],"start":185.45,"end":189.9,"next":195.7},{"id":"ill-always-be-your#o2","words":[["i'll","אַייל"],["always","אוֹלְוֶייז"],["be","בִּי"],["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"]],"times":[[0.66,1.76],[1.76,2.56],[2.56,3.06],[3.06,3.56],[3.56,4.26],[4.26,4.76]],"start":195.04,"end":199.8,"next":203.77},{"id":"you-taught-me-i#o5","words":[["you","יוּ"],["taught","טוֹט"],["me","מִי"],["I","אַיי"],["was","ווָז"],["not","נָאט"],["alone","אֲלוֹוּן"]],"times":[[0.66,1.36],[1.36,1.98],[1.98,3.18],[3.18,4.0],[4.0,4.86],[4.86,5.8],[5.8,8.26]],"start":203.11,"end":211.37,"next":212.8},{"id":"how-do-i-learn#o1","words":[["how","הַאוּ"],["do","דוּ"],["I","אַיי"],["learn","לֶרְן"],["that","דַאט"],["now","נַאוּ"]],"times":[[0.66,1.36],[1.36,1.58],[1.58,2.14],[2.14,3.22],[3.22,4.1],[4.1,5.08]],"start":212.14,"end":217.22,"next":224.64},{"id":"always-your-little-girl#o1","words":[["always","אוֹלְוֶייז"],["your","יוֹר"],["little","לִיטֶל"],["girl","גֶרְל"]],"times":[[0.66,2.06],[2.06,3.46],[3.46,6.6],[6.6,7.47]],"start":223.98,"end":231.45,"next":null}];
+var LEGACY_IDS = ["how-do-i-say#o1", "to-someone-who-was#o1", "you-were-my-home#o1", "always-first-through-the#o1", "i-never-had-to#o1", "you-laughed-the-whole#o1", "you-danced-like-time#o1", "you-wanted-rest-beside#o1", "we-wanted-you-to#o1", "you-taught-me-i#o1", "you-never-taught-me#o1", "how-do-i-let#o1", "you-taught-me-i#o2", "ill-always-be-your#o1", "when-she-was-gone#o1", "the-strongest-man-id#o1", "i-held-on-to#o1", "forgive-me-for-not#o1", "my-love-was-there#o1", "i-hope-you-felt#o1", "tell-her-that-i#o1", "in-my-mind-youre#o1", "still-first-through-the#o1", "you-taught-me-i#o3", "you-never-taught-me#o2", "how-do-i-let#o2", "you-taught-me-i#o4", "you-never-taught-me#o3", "your-little-girl-your#o1", "whatever-years-may-come#o1", "ill-always-be-your#o2", "you-taught-me-i#o5", "how-do-i-learn#o1", "always-your-little-girl#o1"];
+var OFF_OK = {"0": true, "1": true, "2": true, "3": true, "4": false, "5": false, "6": false, "7": false, "8": false, "9": false, "10": false, "11": false, "12": false, "13": false, "14": true, "15": false, "16": false, "17": false, "18": true, "19": false, "20": false, "21": false, "22": false, "23": false, "24": true, "25": false, "26": false, "27": false, "28": false, "29": false, "30": false, "31": true, "32": false, "33": false};
+var REVIEW_UNITS = {"12": true, "13": true};
+window.KFS_BUILD = "align2-1320";
 
 // --- WAV conversion (export/share) ---
 function pcmWavBlob(audioBuf){
@@ -314,7 +381,7 @@ function playSegment(withRec){
     songSrc.buffer = songBuf;
     songSrc.connect(actx.destination);
     songT0 = actx.currentTime; songOff = seg.start;
-    try { songSrc.start(0, seg.start, seg.dur + 1.0); } catch(e){ stopSongSource(); useWA = false; }
+    try { songSrc.start(0, seg.start, seg.dur); } catch(e){ stopSongSource(); useWA = false; }
     songSrc && (songSrc.onended = function(){ if (playing) finishPlayback(withRec); });
   }
   if (!useWA){
@@ -489,7 +556,7 @@ function showReview(blob){
 function persistTake(){
   if (!takeBlob) return;
   persistState = 'saving';
-  idbSet('kfs_draft_'+lineIdx, takeBlob).then(function(){
+  idbSet(draftKey(lineIdx), takeBlob).then(function(){
     persistState='ok';
     E('persist-ok').classList.remove('hidden');
     E('persist-fail').classList.add('hidden');
@@ -574,7 +641,7 @@ E('btn-nextline').onclick = function(){
   var button = E('btn-nextline'); button.disabled = true;
   var acceptedLine = lineIdx;
   idbSet(takeKey(acceptedLine), takeBlob).then(function(){
-    try { localStorage.setItem('kfs_appr_'+acceptedLine, '1'); } catch(e){}
+    try { localStorage.setItem(apprKey(acceptedLine), '1'); } catch(e){}
     lineIdx = acceptedLine < LINES.length-1 ? acceptedLine+1 : 0;
     saveLineIdx(); renderLine(); show('ready');
   }).catch(function(){
@@ -621,6 +688,12 @@ E('btn-saved-download').onclick = function(){
     migrateOldOffset();
     return migrateOldTake();
   }).then(function(){
+    return migrateV1();
+  }).then(function(){
+    try {
+      var lid = localStorage.getItem('kfs2_line');
+      if (lid){ for (var k=0;k<LINES.length;k++){ if (LINES[k].id===lid){ lineIdx=k; break; } } }
+    } catch(e){}
     return idbGet('song');
   }).then(function(blob){
     if (blob){
