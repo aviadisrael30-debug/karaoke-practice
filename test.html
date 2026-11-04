@@ -272,15 +272,17 @@ function ensureCtx(){
   if (actx.state === 'suspended'){ try { actx.resume(); } catch(e){} }
   return actx;
 }
+var songGen = 0;
 function decodeSongNow(blob){
-  if (songBuf || songDecoding) return;
+  var gen = ++songGen;
+  songBuf = null;
   songDecoding = true;
   blob.arrayBuffer().then(function(ab){
     var AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     var dctx = actx || new AC();
-    return dctx.decodeAudioData(ab).then(function(buf){ songBuf = buf; });
-  }).catch(function(){}).finally(function(){ songDecoding = false; });
+    return dctx.decodeAudioData(ab).then(function(buf){ if (gen === songGen) songBuf = buf; });
+  }).catch(function(){}).finally(function(){ if (gen === songGen) songDecoding = false; });
 }
 function stopSongSource(){
   if (songSrc){ try { songSrc.onended = null; songSrc.stop(); } catch(e){} try { songSrc.disconnect(); } catch(e){} songSrc = null; }
@@ -523,6 +525,7 @@ function setSongBlob(blob, name){
   E('song-status').textContent = '✓ ' + (name||'השיר') + ' נטען';
   E('btn-mic').disabled = false;
   err(E('err-gate'),'');
+  stopSongSource();
   decodeSongNow(blob);
 }
 
