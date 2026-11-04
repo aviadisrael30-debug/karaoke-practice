@@ -54,7 +54,18 @@
   .metrics .mdisc { margin-top: 6px; font-size: 11px; color: #9b968c; line-height: 1.5; }
   .stepnum { display: inline-block; background: #1c1a17; color: #fff; border-radius: 50%; width: 22px; height: 22px; text-align: center; line-height: 22px; font-size: 13px; margin-left: 6px; }
   .progress-line { font-size: 13px; color: #065f46; margin-top: 10px; text-align: center; }
-</style>
+
+    .take-row{display:flex;align-items:center;gap:8px;padding:8px 6px;border-bottom:1px solid #e5e7eb;text-align:right;}
+    .take-row .ti{flex:1;min-width:0;cursor:pointer;}
+    .take-row .tnum{font-weight:600;font-size:13px;color:#065f46;}
+    .take-row .twords{font-size:13px;color:#374151;direction:ltr;text-align:right;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+    .take-badge{font-size:11px;border-radius:6px;padding:2px 7px;white-space:nowrap;}
+    .take-badge.ok{background:#d1fae5;color:#065f46;}
+    .take-badge.draft{background:#fef3c7;color:#92400e;}
+    .take-badge.none{background:#f3f4f6;color:#6b7280;}
+    .take-badge.review{background:#fff4d6;color:#8a5a00;border:1px solid #e6c76a;}
+    .take-row button.mini{width:auto;display:inline-block;min-height:0;margin-top:0;padding:6px 12px;font-size:14px;font-weight:500;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer;white-space:nowrap;flex:0 0 auto;}
+  </style>
 </head>
 <body>
 <div class="card">
@@ -119,6 +130,21 @@
     <p class="hint">אחרי לחיצה על הקלטה תישמע ספירה 3-2-1 ואז השורה מתנגנת באוזניות והמילים נצבעות. שר איתה. ההקלטה עוצרת לבד קצת אחרי שהשורה מסתיימת, ואפשר גם ללחוץ "עצור הקלטה" בכל רגע.</p>
     <p class="error hidden" id="err-ready"></p>
     <p class="progress-line" id="progress-line"></p>
+    <button class="secondary" id="btn-takes" style="margin-top:8px">הטייקים שלי וגיבוי</button>
+  </div>
+
+  <div id="takes" class="hidden">
+    <h2>הטייקים שלי</h2>
+    <p class="hint" id="takes-summary"></p>
+    <button class="primary" id="btn-backup">⬇ הורד גיבוי של כל הטייקים</button>
+    <p class="hint">הגיבוי הוא קובץ ZIP שיורד לטלפון שלך ונשאר אצלך בלבד - הדף לא מעלה שום דבר. הוא שומר את כל הטייקים וההגדרות.</p>
+    <button class="secondary" id="btn-restore">שחזר מקובץ גיבוי</button>
+    <input type="file" id="restore-input" accept=".zip,application/zip" class="hidden">
+    <p class="hint">שחזור מוסיף רק טייקים שחסרים - הוא לא מוחק ולא מחליף טייקים שקיימים.</p>
+    <p class="hint" id="restore-msg" style="color:#065f46;font-weight:600"></p>
+    <p class="error hidden" id="err-takes"></p>
+    <div id="takes-list"></div>
+    <button class="secondary" id="btn-takes-back" style="margin-top:12px">→ חזרה לשורה</button>
   </div>
 
   <div id="review" class="hidden">
@@ -153,10 +179,10 @@
 <script>
 var LEAD = 0.66, TAIL = 2.5;
 function $(id){ return document.getElementById(id); }
-['blocked','gate','ready','review','done','btn-pick','file-input','review-note','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
+['blocked','gate','ready','review','done','btn-pick','file-input','review-note','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song','takes','btn-takes','btn-backup','btn-restore','restore-input','restore-msg','takes-list','takes-summary','err-takes','btn-takes-back'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
 function E(id){ return window['E_'+id.replace(/-/g,'_')]; }
 
-function show(name){ ['gate','ready','review','done'].forEach(function(s){ E(s).classList.toggle('hidden', s!==name); }); }
+function show(name){ ['gate','ready','review','done','takes'].forEach(function(s){ E(s).classList.toggle('hidden', s!==name); }); }
 function err(el,msg){ el.textContent=msg||''; el.classList.toggle('hidden',!msg); }
 
 // --- IndexedDB (same db/store as previous version: karaoke-db / files) ---
@@ -314,7 +340,7 @@ var LINES = [{"id":"how-do-i-say#o1","words":[["how","הַאוּ"],["do","דוּ
 var LEGACY_IDS = ["how-do-i-say#o1", "to-someone-who-was#o1", "you-were-my-home#o1", "always-first-through-the#o1", "i-never-had-to#o1", "you-laughed-the-whole#o1", "you-danced-like-time#o1", "you-wanted-rest-beside#o1", "we-wanted-you-to#o1", "you-taught-me-i#o1", "you-never-taught-me#o1", "how-do-i-let#o1", "you-taught-me-i#o2", "ill-always-be-your#o1", "when-she-was-gone#o1", "the-strongest-man-id#o1", "i-held-on-to#o1", "forgive-me-for-not#o1", "my-love-was-there#o1", "i-hope-you-felt#o1", "tell-her-that-i#o1", "in-my-mind-youre#o1", "still-first-through-the#o1", "you-taught-me-i#o3", "you-never-taught-me#o2", "how-do-i-let#o2", "you-taught-me-i#o4", "you-never-taught-me#o3", "your-little-girl-your#o1", "whatever-years-may-come#o1", "ill-always-be-your#o2", "you-taught-me-i#o5", "how-do-i-learn#o1", "always-your-little-girl#o1"];
 var OFF_OK = {"0": true, "1": true, "2": true, "3": true, "4": false, "5": false, "6": false, "7": false, "8": false, "9": false, "10": false, "11": false, "12": false, "13": false, "14": true, "15": false, "16": false, "17": false, "18": true, "19": false, "20": false, "21": false, "22": false, "23": false, "24": true, "25": false, "26": false, "27": false, "28": false, "29": false, "30": false, "31": true, "32": false, "33": false};
 var REVIEW_IDS = {"ill-always-be-your#o1": true};
-window.KFS_BUILD = "align2-1331";
+window.KFS_BUILD = "align2-takes4-0132";
 
 // --- WAV conversion (export/share) ---
 function pcmWavBlob(audioBuf){
@@ -612,6 +638,244 @@ E('btn-mic').onclick = function(){
 };
 
 E('btn-play').onclick = function(){ err(E('err-ready'),''); clearHighlight(); playSegment(false); };
+
+// --- takes overview + backup/restore ---
+var takesAudio = null, takesAudioKey = null;
+function stopTakesAudio(){
+  if (takesAudio){ try { takesAudio.pause(); } catch(e){} takesAudio = null; takesAudioKey = null; }
+  var bs = document.querySelectorAll('#takes-list button.mini.playing');
+  for (var i=0;i<bs.length;i++){ bs[i].classList.remove('playing'); bs[i].textContent = '▶'; }
+}
+function shortWords(line){ var w=[]; for (var i=0;i<Math.min(4,line.words.length);i++) w.push(line.words[i][0]); return w.join(' '); }
+function renderTakes(){
+  stopTakesAudio();
+  err(E('err-takes'),'');
+  E('restore-msg').textContent = '';
+  var list = E('takes-list'); list.innerHTML = '';
+  var rows = [], remaining = LINES.length, approved=0, drafts=0, missing=0;
+  function finishSummary(){
+    var s1 = approved===1 ? 'אושרה שורה אחת' : ('אושרו ' + approved + ' שורות');
+    var s2 = drafts===1 ? 'טייק אחד ממתין' : (drafts + ' טייקים ממתינים');
+    var s3 = missing===1 ? 'שורה אחת עוד לא הוקלטה' : (missing + ' עוד לא הוקלטו');
+    E('takes-summary').textContent = s1 + ', ' + s2 + ', ' + s3 + ' (מתוך ' + LINES.length + ').';
+  }
+  for (var i=0;i<LINES.length;i++){ (function(i){
+    var id = uid(i);
+    var row = document.createElement('div'); row.className='take-row';
+    var ti = document.createElement('div'); ti.className='ti';
+    ti.innerHTML = '<div class="tnum">שורה ' + (i+1) + '</div><div class="twords">' + shortWords(LINES[i]).replace(/</g,'&lt;') + '</div>';
+    ti.title = 'מעבר לשורה';
+    ti.onclick = function(){ stopTakesAudio(); lineIdx = i; saveLineIdx(); renderLine(); show('ready'); };
+    row.appendChild(ti);
+    var bd = document.createElement('span'); bd.className='take-badge none'; bd.textContent='...'; row.appendChild(bd);
+    list.appendChild(row);
+    idbGet(takeKey(i)).then(function(tb){ return tb ? {b:tb, kind:'take'} : idbGet(draftKey(i)).then(function(db){ return db ? {b:db, kind:'draft'} : null; }); }).then(function(r){
+      var appr = false; try { appr = localStorage.getItem(apprKey(i))==='1'; } catch(e){}
+      if (appr) approved++;
+      if (!r) missing++; else if (r.kind==='draft') drafts++;
+      if (REVIEW_IDS[id]){ bd.className='take-badge review'; bd.textContent='בבדיקה'; }
+      else if (appr){ bd.className='take-badge ok'; bd.textContent='✓ מאושר'; }
+      else if (r){ bd.className='take-badge draft'; bd.textContent='טייק ממתין'; }
+      else { bd.className='take-badge none'; bd.textContent='לא הוקלט'; }
+      if (r){
+        var pb = document.createElement('button'); pb.className='mini'; pb.textContent='▶';
+        var blobRef = r.b;
+        pb.onclick = function(){
+          if (takesAudioKey === takeKey(i)){ stopTakesAudio(); return; }
+          stopTakesAudio();
+          takesAudio = new Audio(URL.createObjectURL(blobRef)); takesAudioKey = takeKey(i);
+          takesAudio.onended = function(){ stopTakesAudio(); };
+          takesAudio.play().catch(function(){ err(E('err-takes'),'לא הצלחתי לנגן את הטייק.'); stopTakesAudio(); });
+          pb.classList.add('playing'); pb.textContent='⏹';
+        };
+        row.appendChild(pb);
+      }
+      remaining--; if (remaining===0) finishSummary();
+    }).catch(function(){ remaining--; if (remaining===0) finishSummary(); });
+  })(i); }
+}
+E('btn-takes').onclick = function(){ show('takes'); renderTakes(); };
+E('btn-takes-back').onclick = function(){ stopTakesAudio(); renderLine(); show('ready'); };
+
+// store-only ZIP writer (no compression, no library)
+var CRC_T = null;
+function crc32(buf){
+  if (!CRC_T){ CRC_T = new Uint32Array(256); for (var n=0;n<256;n++){ var c=n; for (var k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1); CRC_T[n]=c>>>0; } }
+  var c = 0xFFFFFFFF;
+  for (var i=0;i<buf.length;i++) c = CRC_T[(c ^ buf[i]) & 0xFF] ^ (c>>>8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+function dosDate(d){
+  var t = ((d.getHours()&31)<<11) | ((d.getMinutes()&63)<<5) | ((d.getSeconds()/2)&31);
+  var dd = (((d.getFullYear()-1980)&127)<<9) | (((d.getMonth()+1)&15)<<5) | (d.getDate()&31);
+  return [t, dd];
+}
+function extFor(blob){
+  var t = blob.type||'';
+  if (t.indexOf('wav')>=0) return 'wav';
+  if (t.indexOf('mp4')>=0 || t.indexOf('m4a')>=0 || t.indexOf('aac')>=0) return 'm4a';
+  if (t.indexOf('ogg')>=0) return 'ogg';
+  if (t.indexOf('mpeg')>=0) return 'mp3';
+  return 'webm';
+}
+function mimeFor(name){
+  var ext = name.split('.').pop().toLowerCase();
+  if (ext==='wav') return 'audio/wav';
+  if (ext==='m4a') return 'audio/mp4';
+  if (ext==='ogg') return 'audio/ogg';
+  if (ext==='mp3') return 'audio/mpeg';
+  return 'audio/webm';
+}
+function buildZip(entries){
+  // entries: [{name:ascii string, data:Uint8Array}]
+  var parts = [], central = [], offset = 0;
+  var dd = dosDate(new Date());
+  entries.forEach(function(en){
+    var nameBytes = new Uint8Array(en.name.length);
+    for (var i=0;i<en.name.length;i++) nameBytes[i] = en.name.charCodeAt(i) & 0x7F;
+    var crc = crc32(en.data);
+    var lh = new DataView(new ArrayBuffer(30));
+    lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true); lh.setUint16(6, 0, true); lh.setUint16(8, 0, true);
+    lh.setUint16(10, dd[0], true); lh.setUint16(12, dd[1], true);
+    lh.setUint32(14, crc, true); lh.setUint32(18, en.data.length, true); lh.setUint32(22, en.data.length, true);
+    lh.setUint16(26, nameBytes.length, true); lh.setUint16(28, 0, true);
+    parts.push(new Uint8Array(lh.buffer), nameBytes, en.data);
+    var ch = new DataView(new ArrayBuffer(46));
+    ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true);
+    ch.setUint16(8, 0, true); ch.setUint16(10, 0, true);
+    ch.setUint16(12, dd[0], true); ch.setUint16(14, dd[1], true);
+    ch.setUint32(16, crc, true); ch.setUint32(20, en.data.length, true); ch.setUint32(24, en.data.length, true);
+    ch.setUint16(28, nameBytes.length, true);
+    ch.setUint32(42, offset, true);
+    central.push(new Uint8Array(ch.buffer), nameBytes);
+    offset += 30 + nameBytes.length + en.data.length;
+  });
+  var cdSize = 0; central.forEach(function(p){ cdSize += p.length; });
+  var eh = new DataView(new ArrayBuffer(22));
+  eh.setUint32(0, 0x06054b50, true);
+  eh.setUint16(8, entries.length, true); eh.setUint16(10, entries.length, true);
+  eh.setUint32(12, cdSize, true); eh.setUint32(16, offset, true);
+  return new Blob(parts.concat(central).concat([new Uint8Array(eh.buffer)]), {type:'application/zip'});
+}
+function parseZip(u8){
+  // reads store-only ZIP (the format buildZip writes); returns [{name, data:Uint8Array}]
+  var dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+  var eocd = -1;
+  for (var i = u8.length - 22; i >= Math.max(0, u8.length - 66000); i--){
+    if (dv.getUint32(i, true) === 0x06054b50){ eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('not a zip');
+  var n = dv.getUint16(eocd + 10, true);
+  var off = dv.getUint32(eocd + 16, true);
+  var out = [];
+  for (var k = 0; k < n; k++){
+    if (dv.getUint32(off, true) !== 0x02014b50) throw new Error('bad central directory');
+    var method = dv.getUint16(off + 10, true);
+    var clen = dv.getUint32(off + 20, true);
+    var nlen = dv.getUint16(off + 28, true);
+    var elen = dv.getUint16(off + 30, true);
+    var comlen = dv.getUint16(off + 32, true);
+    var loff = dv.getUint32(off + 42, true);
+    var name = '';
+    for (var j = 0; j < nlen; j++) name += String.fromCharCode(dv.getUint8(off + 46 + j));
+    if (method !== 0) throw new Error('compressed entry not supported');
+    var lnlen = dv.getUint16(loff + 26, true);
+    var lelen = dv.getUint16(loff + 28, true);
+    var dstart = loff + 30 + lnlen + lelen;
+    out.push({name: name, data: u8.slice(dstart, dstart + clen)});
+    off += 46 + nlen + elen + comlen;
+  }
+  return out;
+}
+function restoreFromZip(file){
+  return file.arrayBuffer().then(function(ab){
+    var entries = parseZip(new Uint8Array(ab));
+    var manifest = null, files = {};
+    entries.forEach(function(e){
+      if (e.name === 'manifest.json'){ manifest = JSON.parse(new TextDecoder().decode(e.data)); }
+      else files[e.name] = e.data;
+    });
+    if (!manifest || manifest.app !== 'karaoke-practice' || !manifest.lines) throw new Error('bad manifest');
+    var restored = 0, kept = 0, jobs = [];
+    manifest.lines.forEach(function(ml){
+      var idx = -1;
+      for (var i=0;i<LINES.length;i++) if (uid(i) === ml.id){ idx = i; break; }
+      if (idx < 0) return;
+      var prefix = 'line-' + ('0'+ml.n).slice(-2) + '-';
+      var takeName = null, draftName = null;
+      Object.keys(files).forEach(function(nm){
+        if (nm.indexOf(prefix) === 0) takeName = nm;
+        else if (nm.indexOf('draft-' + prefix) === 0) draftName = nm;
+      });
+      jobs.push(idbGet(takeKey(idx)).then(function(localTake){
+        if (localTake){ kept++; return null; }
+        if (takeName){
+          return idbSet(takeKey(idx), new Blob([files[takeName]], {type: mimeFor(takeName)})).then(function(){
+            restored++;
+            if (ml.approved) try { localStorage.setItem(apprKey(idx), '1'); } catch(e){}
+          });
+        }
+        if (draftName){
+          return idbGet(draftKey(idx)).then(function(localDraft){
+            if (localDraft) return null;
+            return idbSet(draftKey(idx), new Blob([files[draftName]], {type: mimeFor(draftName)})).then(function(){ restored++; });
+          });
+        }
+        return null;
+      }).then(function(){
+        if (ml.offset && !localStorage.getItem(offKey(idx))) try { localStorage.setItem(offKey(idx), String(ml.offset)); } catch(e){}
+      }));
+    });
+    return Promise.all(jobs).then(function(){ return {restored: restored, kept: kept}; });
+  });
+}
+E('btn-backup').onclick = function(){
+  var btn = E('btn-backup'); btn.disabled = true;
+  err(E('err-takes'),'');
+  var entries = [], manifest = {app:'karaoke-practice', build:window.KFS_BUILD, exportedAt:new Date().toISOString(), lines:[]};
+  var jobs = [];
+  for (var i=0;i<LINES.length;i++){(function(i){
+    var id = uid(i);
+    jobs.push(idbGet(takeKey(i)).then(function(tb){
+      if (tb) return {b:tb, kind:'take'};
+      return idbGet(draftKey(i)).then(function(db){ return db ? {b:db, kind:'draft'} : null; });
+    }).then(function(r){
+      var appr = false; try { appr = localStorage.getItem(apprKey(i))==='1'; } catch(e){}
+      manifest.lines.push({n:i+1, id:id, approved:appr, offset:getOff(i), saved: r ? r.kind : null});
+      if (r){
+        var base = 'line-' + ('0'+(i+1)).slice(-2) + '-' + id.replace(/[^a-z0-9]+/gi,'-');
+        var fname = (r.kind==='draft' ? 'draft-' : '') + base + '.' + extFor(r.b);
+        return r.b.arrayBuffer().then(function(ab){ entries.push({name:fname, data:new Uint8Array(ab)}); });
+      }
+    }));
+  })(i);}
+  Promise.all(jobs).then(function(){
+    manifest.lines.sort(function(a,b){ return a.n-b.n; });
+    entries.push({name:'manifest.json', data:new TextEncoder().encode(JSON.stringify(manifest, null, 2))});
+    if (entries.length === 1){ err(E('err-takes'),'אין עדיין טייקים לגבות.'); return; }
+    entries.sort(function(a,b){ return a.name==='manifest.json' ? 1 : b.name==='manifest.json' ? -1 : (a.name < b.name ? -1 : 1); });
+    var zip = buildZip(entries);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(zip);
+    a.download = 'karaoke-takes-backup.zip';
+    document.body.appendChild(a); a.click(); a.remove();
+  }).catch(function(){ err(E('err-takes'),'לא הצלחתי לבנות את הגיבוי. נסה שוב.'); })
+    .finally(function(){ btn.disabled = false; });
+};
+E('btn-restore').onclick = function(){ E('restore-input').click(); };
+E('restore-input').onchange = function(){
+  var f = E('restore-input').files && E('restore-input').files[0];
+  E('restore-input').value = '';
+  if (!f) return;
+  err(E('err-takes'),''); E('restore-msg').textContent = '';
+  restoreFromZip(f).then(function(r){
+    E('restore-msg').textContent = 'שוחזרו ' + r.restored + ' טייקים מהגיבוי. ' + (r.kept ? (r.kept + ' טייקים קיימים לא שונו. ') : '') + 'שום דבר לא נמחק.';
+    renderTakes();
+  }).catch(function(){
+    err(E('err-takes'),'לא הצלחתי לקרוא את קובץ הגיבוי. ודא שזה קובץ ה-ZIP שהורד מהדף.');
+  });
+};
+
 E('btn-rec').onclick = function(){ startCountIn(); };
 E('btn-stop').onclick = function(){ stopRecording(); };
 
