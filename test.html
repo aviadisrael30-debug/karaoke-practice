@@ -100,7 +100,7 @@
       <div class="wordrow en" id="words-en"></div>
     </div>
     <p class="cue-note">צביעת המילים היא הדרכה בלבד - שר בקצב שלך</p>
-    <p class="review-note hidden" id="review-note">שים לב: בקטע הזה מושמעות בשיר מילים נוספות שעדיין לא מוצגות כאן (בערך 1:30 עד 1:52). אפשר להקליט כרגיל - הכיתוב המלא יושלם בהמשך.</p>
+    <p class="review-note hidden" id="review-note">שים לב: הקטע הזה עדיין בבדיקה - בשיר מושמעות כאן מילים נוספות (בערך 1:30 עד 1:52) שעדיין לא מוצגות. אל תקליט את הקטע הזה עדיין. שאר השורות מוכנות להקלטה.</p>
     <button class="secondary" id="btn-play">▶ שמע את השורה באוזניות</button>
     <div class="recbar play hidden" id="playbar"><i></i></div>
     <div class="calib" id="calib">
@@ -244,10 +244,10 @@ function migrateV1(){
             var m = /^kfs_(take|draft)_(\d+)$/.exec(key);
             if (m && !(+m[2]>=0 && +m[2]<LEGACY_IDS.length)) log.unknown.push(key);
           });
-          try { localStorage.setItem('kfs2_miglog', JSON.stringify(log)); } catch(e){}
+          try { if (!localStorage.getItem('kfs2_miglog')) localStorage.setItem('kfs2_miglog', JSON.stringify(log)); } catch(e){}
           res();
         };
-        rq.onerror = function(){ try { localStorage.setItem('kfs2_miglog', JSON.stringify(log)); } catch(e){} res(); };
+        rq.onerror = function(){ try { if (!localStorage.getItem('kfs2_miglog')) localStorage.setItem('kfs2_miglog', JSON.stringify(log)); } catch(e){} res(); };
       } catch(e){ res(); }
     });
   });
@@ -296,6 +296,7 @@ function renderLine(){
   E('btn-stop').classList.add('hidden'); E('btn-rec').classList.remove('hidden'); E('btn-play').disabled=false;
   err(E('err-ready'),'');
   E('review-note').classList.toggle('hidden', !REVIEW_UNITS[lineIdx]);
+  E('btn-rec').disabled = !!REVIEW_UNITS[lineIdx];
   // saved take banner for this line
   E('saved').classList.add('hidden');
   idbGet(takeKey(lineIdx)).then(function(b){ return b || idbGet(draftKey(lineIdx)); }).then(function(b){
@@ -312,7 +313,7 @@ var LINES = [{"id":"how-do-i-say#o1","words":[["how","הַאוּ"],["do","דוּ
 var LEGACY_IDS = ["how-do-i-say#o1", "to-someone-who-was#o1", "you-were-my-home#o1", "always-first-through-the#o1", "i-never-had-to#o1", "you-laughed-the-whole#o1", "you-danced-like-time#o1", "you-wanted-rest-beside#o1", "we-wanted-you-to#o1", "you-taught-me-i#o1", "you-never-taught-me#o1", "how-do-i-let#o1", "you-taught-me-i#o2", "ill-always-be-your#o1", "when-she-was-gone#o1", "the-strongest-man-id#o1", "i-held-on-to#o1", "forgive-me-for-not#o1", "my-love-was-there#o1", "i-hope-you-felt#o1", "tell-her-that-i#o1", "in-my-mind-youre#o1", "still-first-through-the#o1", "you-taught-me-i#o3", "you-never-taught-me#o2", "how-do-i-let#o2", "you-taught-me-i#o4", "you-never-taught-me#o3", "your-little-girl-your#o1", "whatever-years-may-come#o1", "ill-always-be-your#o2", "you-taught-me-i#o5", "how-do-i-learn#o1", "always-your-little-girl#o1"];
 var OFF_OK = {"0": true, "1": true, "2": true, "3": true, "4": false, "5": false, "6": false, "7": false, "8": false, "9": false, "10": false, "11": false, "12": false, "13": false, "14": true, "15": false, "16": false, "17": false, "18": true, "19": false, "20": false, "21": false, "22": false, "23": false, "24": true, "25": false, "26": false, "27": false, "28": false, "29": false, "30": false, "31": true, "32": false, "33": false};
 var REVIEW_UNITS = {"12": true, "13": true};
-window.KFS_BUILD = "align2-1310";
+window.KFS_BUILD = "align2-1320";
 
 // --- WAV conversion (export/share) ---
 function pcmWavBlob(audioBuf){
