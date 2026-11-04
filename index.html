@@ -64,6 +64,7 @@
     .take-badge.draft{background:#fef3c7;color:#92400e;}
     .take-badge.none{background:#f3f4f6;color:#6b7280;}
     .take-badge.review{background:#fff4d6;color:#8a5a00;border:1px solid #e6c76a;}
+    .take-badge.saved{background:#dbeafe;color:#1e40af;}
     .take-row button.mini{width:auto;display:inline-block;min-height:0;margin-top:0;padding:6px 12px;font-size:14px;font-weight:500;border-radius:8px;border:1px solid #d1d5db;background:#fff;cursor:pointer;white-space:nowrap;flex:0 0 auto;}
   </style>
 </head>
@@ -136,8 +137,8 @@
   <div id="takes" class="hidden">
     <h2>הטייקים שלי</h2>
     <p class="hint" id="takes-summary"></p>
-    <button class="primary" id="btn-backup">⬇ הורד גיבוי של כל הטייקים</button>
-    <p class="hint">הגיבוי הוא קובץ ZIP שיורד לטלפון שלך ונשאר אצלך בלבד - הדף לא מעלה שום דבר. הוא שומר את כל הטייקים וההגדרות.</p>
+    <button class="primary" id="btn-backup">⬇ הורד את כל הטייקים בלחיצה אחת (ZIP)</button>
+    <p class="hint">הגיבוי הוא קובץ ZIP שיורד לטלפון שלך ונשאר אצלך בלבד - הדף לא מעלה שום דבר. הוא שומר את כל הטייקים, הטייקים הממתינים, גרסאות קודמות וההגדרות.</p>
     <button class="secondary" id="btn-restore">שחזר מקובץ גיבוי</button>
     <input type="file" id="restore-input" accept=".zip,application/zip" class="hidden">
     <p class="hint">שחזור מוסיף רק טייקים שחסרים - הוא לא מוחק ולא מחליף טייקים שקיימים.</p>
@@ -154,8 +155,10 @@
     <div id="metrics" class="metrics hidden"></div>
     <button class="secondary" id="btn-again">הקלט שוב</button>
     <button class="primary" id="btn-review-share">שלח / שתף את ההקלטה</button>
-    <button class="secondary" id="btn-review-download">שמור קובץ בטלפון</button>
-    <p class="hint hidden" id="share-help">אם לא נפתח חלון שיתוף: שמור את הקובץ בטלפון, חזור לוואטסאפ וצרף אותו באמצעות סמל המהדק. הדף לא שולח הקלטות בעצמו.</p>
+    <button class="secondary" id="btn-review-save">💾 שמור את הטייק בדף</button>
+    <p class="hint" id="save-ok" style="color:#065f46;font-weight:600"></p>
+    <button class="secondary" id="btn-review-download">⬇ הורד קובץ לטלפון</button>
+    <p class="hint hidden" id="share-help">אם לא נפתח חלון שיתוף: הורד את הקובץ לטלפון, חזור לוואטסאפ וצרף אותו באמצעות סמל המהדק. הדף לא שולח הקלטות בעצמו.</p>
     <button class="primary" id="btn-done">אישור הטייק והמשך ✓</button>
   </div>
 
@@ -179,7 +182,7 @@
 <script>
 var LEAD = 0.66, TAIL = 2.5;
 function $(id){ return document.getElementById(id); }
-['blocked','gate','ready','review','done','btn-pick','file-input','review-note','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song','takes','btn-takes','btn-backup','btn-restore','restore-input','restore-msg','takes-list','takes-summary','err-takes','btn-takes-back'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
+['blocked','gate','ready','review','done','btn-pick','file-input','review-note','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','btn-review-save','save-ok','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song','takes','btn-takes','btn-backup','btn-restore','restore-input','restore-msg','takes-list','takes-summary','err-takes','btn-takes-back'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
 function E(id){ return window['E_'+id.replace(/-/g,'_')]; }
 
 function show(name){ ['gate','ready','review','done','takes'].forEach(function(s){ E(s).classList.toggle('hidden', s!==name); }); }
@@ -313,6 +316,7 @@ function highlightWord(idx){
 function clearHighlight(){ highlightWord(-1); }
 
 function renderLine(){
+  try { E('save-ok').textContent=''; } catch(e){}
   lineIdx = Math.min(Math.max(lineIdx,0), LINES.length-1);
   E('line-pos').textContent = 'שורה ' + (lineIdx+1) + ' מתוך ' + LINES.length;
   E('btn-prev').disabled = (lineIdx===0);
@@ -340,7 +344,7 @@ var LINES = [{"id":"how-do-i-say#o1","words":[["how","הַאוּ"],["do","דוּ
 var LEGACY_IDS = ["how-do-i-say#o1", "to-someone-who-was#o1", "you-were-my-home#o1", "always-first-through-the#o1", "i-never-had-to#o1", "you-laughed-the-whole#o1", "you-danced-like-time#o1", "you-wanted-rest-beside#o1", "we-wanted-you-to#o1", "you-taught-me-i#o1", "you-never-taught-me#o1", "how-do-i-let#o1", "you-taught-me-i#o2", "ill-always-be-your#o1", "when-she-was-gone#o1", "the-strongest-man-id#o1", "i-held-on-to#o1", "forgive-me-for-not#o1", "my-love-was-there#o1", "i-hope-you-felt#o1", "tell-her-that-i#o1", "in-my-mind-youre#o1", "still-first-through-the#o1", "you-taught-me-i#o3", "you-never-taught-me#o2", "how-do-i-let#o2", "you-taught-me-i#o4", "you-never-taught-me#o3", "your-little-girl-your#o1", "whatever-years-may-come#o1", "ill-always-be-your#o2", "you-taught-me-i#o5", "how-do-i-learn#o1", "always-your-little-girl#o1"];
 var OFF_OK = {"0": true, "1": true, "2": true, "3": true, "4": false, "5": false, "6": false, "7": false, "8": false, "9": false, "10": false, "11": false, "12": false, "13": false, "14": true, "15": false, "16": false, "17": false, "18": true, "19": false, "20": false, "21": false, "22": false, "23": false, "24": true, "25": false, "26": false, "27": false, "28": false, "29": false, "30": false, "31": true, "32": false, "33": false};
 var REVIEW_IDS = {"ill-always-be-your#o1": true};
-window.KFS_BUILD = "align2-takes4-0132";
+window.KFS_BUILD = "align2-takes6-0155";
 
 // --- WAV conversion (export/share) ---
 function pcmWavBlob(audioBuf){
@@ -639,6 +643,36 @@ E('btn-mic').onclick = function(){
 
 E('btn-play').onclick = function(){ err(E('err-ready'),''); clearHighlight(); playSegment(false); };
 
+
+// versioned save: never overwrite an existing saved take - archive it first (archive failure aborts the write)
+function verKey(i, ts){ return 'kfs2_ver_' + uid(i) + '_' + ts; }
+function verMetaKey(i, ts){ return 'kfs2_vermeta_' + uid(i) + '_' + ts; }
+function blobsEqual(a, b){
+  if (a.size !== b.size) return Promise.resolve(false);
+  return Promise.all([a.arrayBuffer(), b.arrayBuffer()]).then(function(ab){
+    var x = new Uint8Array(ab[0]), y = new Uint8Array(ab[1]);
+    for (var i=0;i<x.length;i++) if (x[i]!==y[i]) return false;
+    return true;
+  });
+}
+function saveTakeVersioned(i, blob){
+  return idbGet(takeKey(i)).then(function(old){
+    if (!old) return idbSet(takeKey(i), blob);
+    return blobsEqual(old, blob).then(function(same){
+      if (same) return null; // identical audio already saved - no duplicate archive
+      // replacing with DIFFERENT audio: archive the old take with its approval state, then clear approval - the new audio is unapproved until the user approves it
+      var ts = Date.now();
+      var wasAppr = false; try { wasAppr = localStorage.getItem(apprKey(i))==='1'; } catch(e){}
+      return idbSet(verKey(i, ts), old).then(function(){
+        try { localStorage.setItem(verMetaKey(i, ts), wasAppr ? 'approved' : 'saved'); } catch(e){}
+        try { localStorage.removeItem(apprKey(i)); } catch(e){}
+        return idbSet(takeKey(i), blob);
+      });
+    });
+  });
+}
+function idbKeys(){ return new Promise(function(res,rej){ var q=idb.transaction('files').objectStore('files').getAllKeys(); q.onsuccess=function(){ res(q.result||[]); }; q.onerror=function(){ rej(q.error); }; }); }
+
 // --- takes overview + backup/restore ---
 var takesAudio = null, takesAudioKey = null;
 function stopTakesAudio(){
@@ -652,12 +686,13 @@ function renderTakes(){
   err(E('err-takes'),'');
   E('restore-msg').textContent = '';
   var list = E('takes-list'); list.innerHTML = '';
-  var rows = [], remaining = LINES.length, approved=0, drafts=0, missing=0;
+  var rows = [], remaining = LINES.length, approved=0, saved=0, drafts=0, missing=0;
   function finishSummary(){
     var s1 = approved===1 ? 'אושרה שורה אחת' : ('אושרו ' + approved + ' שורות');
+    var s4 = saved===1 ? 'טייק אחד שמור' : (saved + ' טייקים שמורים');
     var s2 = drafts===1 ? 'טייק אחד ממתין' : (drafts + ' טייקים ממתינים');
     var s3 = missing===1 ? 'שורה אחת עוד לא הוקלטה' : (missing + ' עוד לא הוקלטו');
-    E('takes-summary').textContent = s1 + ', ' + s2 + ', ' + s3 + ' (מתוך ' + LINES.length + ').';
+    E('takes-summary').textContent = s1 + ', ' + s4 + ', ' + s2 + ', ' + s3 + ' (מתוך ' + LINES.length + ').';
   }
   for (var i=0;i<LINES.length;i++){ (function(i){
     var id = uid(i);
@@ -672,9 +707,11 @@ function renderTakes(){
     idbGet(takeKey(i)).then(function(tb){ return tb ? {b:tb, kind:'take'} : idbGet(draftKey(i)).then(function(db){ return db ? {b:db, kind:'draft'} : null; }); }).then(function(r){
       var appr = false; try { appr = localStorage.getItem(apprKey(i))==='1'; } catch(e){}
       if (appr) approved++;
+      else if (r && r.kind==='take') saved++;
       if (!r) missing++; else if (r.kind==='draft') drafts++;
       if (REVIEW_IDS[id]){ bd.className='take-badge review'; bd.textContent='בבדיקה'; }
       else if (appr){ bd.className='take-badge ok'; bd.textContent='✓ מאושר'; }
+      else if (r && r.kind==='take'){ bd.className='take-badge saved'; bd.textContent='💾 שמור'; }
       else if (r){ bd.className='take-badge draft'; bd.textContent='טייק ממתין'; }
       else { bd.className='take-badge none'; bd.textContent='לא הוקלט'; }
       if (r){
@@ -696,6 +733,18 @@ function renderTakes(){
 }
 E('btn-takes').onclick = function(){ show('takes'); renderTakes(); };
 E('btn-takes-back').onclick = function(){ stopTakesAudio(); renderLine(); show('ready'); };
+
+// explicit save (keeps the take in the page without approving or advancing)
+E('btn-review-save').onclick = function(){
+  if (!takeBlob) return;
+  var btn = E('btn-review-save'); btn.disabled = true;
+  E('save-ok').textContent = '';
+  saveTakeVersioned(lineIdx, takeBlob).then(function(){
+    E('save-ok').textContent = '✓ הטייק נשמר בדף (עוד לא מאושר). אם היה טייק שמור קודם, הוא נשמר כגרסה קודמת ולא נמחק.';
+  }).catch(function(){
+    E('save-ok').textContent = 'לא הצלחתי לשמור את הטייק. הורד את הקובץ לטלפון כדי לא לאבד אותו.';
+  }).finally(function(){ btn.disabled = false; });
+};
 
 // store-only ZIP writer (no compression, no library)
 var CRC_T = null;
@@ -826,13 +875,27 @@ function restoreFromZip(file){
         if (ml.offset && !localStorage.getItem(offKey(idx))) try { localStorage.setItem(offKey(idx), String(ml.offset)); } catch(e){}
       }));
     });
-    return Promise.all(jobs).then(function(){ return {restored: restored, kept: kept}; });
+    var vrestored = 0, vkept = 0;
+    (manifest.versions || []).forEach(function(mv){
+      var idx = -1;
+      for (var i=0;i<LINES.length;i++) if (uid(i) === mv.id){ idx = i; break; }
+      if (idx < 0 || !files[mv.name]) return;
+      var k = verKey(idx, mv.ts);
+      jobs.push(idbGet(k).then(function(existing){
+        if (existing){ vkept++; return null; }
+        return idbSet(k, new Blob([files[mv.name]], {type: mimeFor(mv.name)})).then(function(){
+          vrestored++;
+          if (mv.meta) try { localStorage.setItem(verMetaKey(idx, mv.ts), mv.meta); } catch(e){}
+        });
+      }));
+    });
+    return Promise.all(jobs).then(function(){ return {restored: restored, kept: kept, vrestored: vrestored, vkept: vkept}; });
   });
 }
 E('btn-backup').onclick = function(){
   var btn = E('btn-backup'); btn.disabled = true;
   err(E('err-takes'),'');
-  var entries = [], manifest = {app:'karaoke-practice', build:window.KFS_BUILD, exportedAt:new Date().toISOString(), lines:[]};
+  var entries = [], manifest = {app:'karaoke-practice', build:window.KFS_BUILD, exportedAt:new Date().toISOString(), lines:[], versions:[]};
   var jobs = [];
   for (var i=0;i<LINES.length;i++){(function(i){
     var id = uid(i);
@@ -849,10 +912,32 @@ E('btn-backup').onclick = function(){
       }
     }));
   })(i);}
+  jobs.push(idbKeys().then(function(keys){
+    var vjobs = [];
+    keys.forEach(function(k){
+      k = String(k);
+      if (k.indexOf('kfs2_ver_') !== 0) return;
+      var rest = k.slice('kfs2_ver_'.length);
+      var us = rest.lastIndexOf('_');
+      var id = rest.slice(0, us), ts = rest.slice(us+1);
+      var idx = -1;
+      for (var j=0;j<LINES.length;j++) if (uid(j) === id){ idx = j; break; }
+      if (idx < 0) return;
+      vjobs.push(idbGet(k).then(function(b){
+        if (!b) return null;
+        var name = 'versions/v' + ts + '-line-' + ('0'+(idx+1)).slice(-2) + '-' + id.replace(/[^a-z0-9]+/gi,'-') + '.' + extFor(b);
+        var meta = 'saved'; try { meta = localStorage.getItem(verMetaKey(idx, ts)) || 'saved'; } catch(e){}
+        manifest.versions.push({n: idx+1, id: id, ts: ts, name: name, meta: meta});
+        return b.arrayBuffer().then(function(ab){ entries.push({name:name, data:new Uint8Array(ab)}); });
+      }));
+    });
+    return Promise.all(vjobs);
+  }));
   Promise.all(jobs).then(function(){
     manifest.lines.sort(function(a,b){ return a.n-b.n; });
+    manifest.versions.sort(function(a,b){ return a.n-b.n; });
     entries.push({name:'manifest.json', data:new TextEncoder().encode(JSON.stringify(manifest, null, 2))});
-    if (entries.length === 1){ err(E('err-takes'),'אין עדיין טייקים לגבות.'); return; }
+    if (entries.length === 1 && manifest.versions.length === 0){ err(E('err-takes'),'אין עדיין טייקים לגבות.'); return; }
     entries.sort(function(a,b){ return a.name==='manifest.json' ? 1 : b.name==='manifest.json' ? -1 : (a.name < b.name ? -1 : 1); });
     var zip = buildZip(entries);
     var a = document.createElement('a');
@@ -869,7 +954,7 @@ E('restore-input').onchange = function(){
   if (!f) return;
   err(E('err-takes'),''); E('restore-msg').textContent = '';
   restoreFromZip(f).then(function(r){
-    E('restore-msg').textContent = 'שוחזרו ' + r.restored + ' טייקים מהגיבוי. ' + (r.kept ? (r.kept + ' טייקים קיימים לא שונו. ') : '') + 'שום דבר לא נמחק.';
+    E('restore-msg').textContent = 'שוחזרו ' + r.restored + ' טייקים' + (r.vrestored ? (' ו-' + r.vrestored + ' גרסאות קודמות') : '') + ' מהגיבוי. ' + ((r.kept + r.vkept) ? ((r.kept + r.vkept) + ' פריטים קיימים לא שונו. ') : '') + 'שום דבר לא נמחק.';
     renderTakes();
   }).catch(function(){
     err(E('err-takes'),'לא הצלחתי לקרוא את קובץ הגיבוי. ודא שזה קובץ ה-ZIP שהורד מהדף.');
@@ -905,7 +990,7 @@ E('btn-nextline').onclick = function(){
   if (!takeBlob) return;
   var button = E('btn-nextline'); button.disabled = true;
   var acceptedLine = lineIdx;
-  idbSet(takeKey(acceptedLine), takeBlob).then(function(){
+  saveTakeVersioned(acceptedLine, takeBlob).then(function(){
     try { localStorage.setItem(apprKey(acceptedLine), '1'); } catch(e){}
     lineIdx = acceptedLine < LINES.length-1 ? acceptedLine+1 : 0;
     saveLineIdx(); renderLine(); show('ready');
