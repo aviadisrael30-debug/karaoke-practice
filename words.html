@@ -80,7 +80,7 @@
 </div>
 
 <script>
-window.KFS_BUILD = 'words1-1400';
+window.KFS_BUILD = 'words2-1510';
 var PHRASE = {"id":"i-never-had-to#o1","start":45.6,"words":[["I","אַיי"],["never","נֶוֶור"],["had","הֶאד"],["to","טוּ"],["ask","אַאסְק"]],"times":[[0.1,1.59],[1.59,1.88],[1.88,2.62],[2.62,2.92],[2.92,4.72]]};
 var SLOW = 0.55;
 
@@ -127,7 +127,10 @@ E('btn-mic').onclick = function(){
   err(E('err-gate'),'');
   if (!songBlob){ err(E('err-gate'),'קודם טען את קובץ השיר.'); return; }
   ensureCtx();
-  navigator.mediaDevices.getUserMedia({audio: {echoCancellation:true, noiseSuppression:true}}).then(function(st){
+  // raw mic, same as the line page (user's vocal-quality choice). The prompt is never
+  // playing during capture (record stops it first and waits), so no AEC is needed.
+  // Constraints are best-effort hints; the browser may ignore them.
+  navigator.mediaDevices.getUserMedia({audio: {echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1, sampleRate:48000}}).then(function(st){
     micStream = st; show('practice'); renderWord();
   }).catch(function(){ err(E('err-gate'),'אין הרשאת מיקרופון. בדוק בהגדרות הדפדפן.'); });
 };
@@ -194,6 +197,7 @@ function renderWord(){
 }
 
 E('btn-prompt').onclick = function(){
+  if (recorder && recorder.state !== 'inactive'){ return; } // re-listen only out of record
   if (!songBuf){ err(E('err-practice'),'השיר עדיין נטען, נסה שוב בעוד רגע.'); return; }
   stopPlayback();
   var ctx = ensureCtx(); if (!ctx) return;
@@ -220,15 +224,20 @@ function pickMime(){
   return '';
 }
 E('btn-rec').onclick = function(){
-  stopPlayback();
+  if (recorder && recorder.state !== 'inactive'){ return; }
+  var wasPlaying = !!playSrc;
+  stopPlayback(); // prompt always stops before capture - listen, then repeat
   var mime = pickMime();
   if (!mime){ err(E('err-practice'),'הדפדפן לא תומך בהקלטה כאן.'); return; }
   recChunks = [];
   try { recorder = new MediaRecorder(micStream, {mimeType: mime, audioBitsPerSecond: 128000}); }
   catch(e){ err(E('err-practice'),'המיקרופון לא זמין להקלטה כאן.'); return; }
   recorder.ondataavailable = function(ev){ if (ev.data && ev.data.size) recChunks.push(ev.data); };
-  recorder.onstop = function(){ onTake(new Blob(recChunks, {type: mime})); recChunks=[]; };
-  recorder.start(250);
+  recorder.onstop = function(){ E('btn-prompt').disabled = false; onTake(new Blob(recChunks, {type: mime})); recChunks=[]; };
+  var startRec = function(){
+    if (!recorder || recorder.state !== 'inactive'){ return; }
+    E('btn-prompt').disabled = true;
+    recorder.start(250);
   E('btn-rec').classList.add('hidden');
   E('btn-stop').classList.remove('hidden');
   E('recbar').classList.remove('hidden');
@@ -241,6 +250,9 @@ E('btn-rec').onclick = function(){
     E('reccount').textContent = 'מקליט... נעצר אוטומטית אחרי ' + Math.max(0, Math.ceil(8-elapsed)) + ' שניות (אפשר לעצור מקודם)';
   }, 100);
   recStopTimer = setTimeout(function(){ if (recorder && recorder.state!=='inactive') recorder.stop(); }, 8000);
+  };
+  if (wasPlaying){ setTimeout(startRec, 250); } // settle gap so the mic opens on silence
+  else { startRec(); }
 };
 E('btn-stop').onclick = function(){
   if (recStopTimer){ clearTimeout(recStopTimer); recStopTimer=null; }
