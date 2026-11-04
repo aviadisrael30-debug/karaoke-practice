@@ -164,7 +164,7 @@ function idbSet(k,v){ return new Promise(function(res,rej){ var tx=idb.transacti
 var songBlob = null, songUrl = null;
 var micStream = null;
 var lineIdx = 0;
-try { lineIdx = Math.min(Math.max(parseInt(localStorage.getItem('kfs_line')||'0',10)||0,0), LINES.length-1); } catch(e){}
+try { lineIdx = Math.max(parseInt(localStorage.getItem('kfs_line')||'0',10)||0, 0); } catch(e){}
 function takeKey(i){ return 'kfs_take_'+i; }
 function offKey(i){ return 'kfs_off_'+i; }
 function getOff(i){ try { return parseFloat(localStorage.getItem(offKey(i)))||0; } catch(e){ return 0; } }
@@ -223,6 +223,7 @@ function highlightWord(idx){
 function clearHighlight(){ highlightWord(-1); }
 
 function renderLine(){
+  lineIdx = Math.min(Math.max(lineIdx,0), LINES.length-1);
   E('line-pos').textContent = 'שורה ' + (lineIdx+1) + ' מתוך ' + LINES.length;
   E('btn-prev').disabled = (lineIdx===0);
   E('btn-next').textContent = (lineIdx===LINES.length-1) ? 'לסיום ←' : 'הבאה ←';
