@@ -94,9 +94,10 @@
       <button class="secondary" id="btn-later">ההדגשה מאוחר מדי +</button>
     </div>
     <button class="primary" id="btn-rec">● הקלט את עצמך שר עם השיר</button>
+    <button class="primary hidden" id="btn-stop" style="background:#b91c1c">⏹ עצור הקלטה</button>
     <div class="recbar hidden" id="recbar"><i></i></div>
     <p class="reclabel hidden" id="reclabel">● מקליט... שר עם מה שאתה שומע באוזניות</p>
-    <p class="hint">אחרי לחיצה על הקלטה תישמע ספירה 3-2-1 ואז השורה מתנגנת באוזניות והמילים נצבעות. שר איתה. ההקלטה עוצרת לבד כשהשורה מסתיימת. אפשר להקליט כמה פעמים.</p>
+    <p class="hint">אחרי לחיצה על הקלטה תישמע ספירה 3-2-1 ואז השורה מתנגנת באוזניות והמילים נצבעות. שר איתה. ההקלטה עוצרת לבד קצת אחרי שהשורה מסתיימת, ואפשר גם ללחוץ "עצור הקלטה" בכל רגע. אפשר להקליט כמה פעמים.</p>
     <p class="error hidden" id="err-ready"></p>
   </div>
 
@@ -132,8 +133,8 @@ var WORD_LIST = [['How','הַאוּ'],['do','דוּ'],['I','אַיי'],['say','�
 // Word cue times relative to segment start, from transcription of the opening
 // line. Approximate guide; the user can nudge with the calibrate buttons.
 var WORD_TIMES = [[0.66,2.06],[2.06,2.32],[2.32,2.56],[2.56,3.04],[3.04,3.96]];
-var DEFAULT_LINE_START = 10.60; // segment start; the first word lands +0.66s later
-var SEG_TAIL = 1.10;
+var DEFAULT_LINE_START = 10.40; // segment start; the first word lands +0.66s later
+var SEG_TAIL = 2.50;
 var LS_TAKE = 'karaoke_v2_l1_take', LS_OFFSET = 'karaoke_v2_l1_offset', LS_SONGNAME = 'karaoke_v2_song_name';
 var WORDS = WORD_LIST.map(function(w, i){ return {en:w[0], he:w[1], t0: WORD_TIMES[i][0], t1: WORD_TIMES[i][1]}; });
 var segOffset = 0;
@@ -370,6 +371,8 @@ $('btn-rec').onclick = function(){
         stopSong(); stopHighlight(); clearHighlight();
         $('recbar').classList.add('hidden'); $('reclabel').classList.add('hidden');
         btn.textContent = '● הקלט את עצמך שר עם השיר'; btn.disabled = false;
+        btn.classList.remove('hidden'); $('btn-stop').classList.add('hidden');
+        $('btn-play').disabled = false;
         var raw = new Blob(chunks, {type: mime});
         if (!raw.size || raw.size < 500) {
           err('err-ready','לא נקלט קול. בדוק שהמיקרופון עובד ונסה שוב.');
@@ -407,6 +410,8 @@ $('btn-rec').onclick = function(){
         }).catch(function(){ finish(raw, 'webm', mime); });
       };
       btn.textContent = '● מקליט...';
+      btn.classList.add('hidden'); $('btn-stop').classList.remove('hidden');
+      $('btn-play').disabled = true;
       $('recbar').classList.remove('hidden'); $('reclabel').classList.remove('hidden');
       var bar = $('recbar').firstElementChild; bar.style.width = '0%';
       var t0 = Date.now(), total = segLen();
@@ -422,20 +427,30 @@ $('btn-rec').onclick = function(){
         stopSong(); stopHighlight(); clearHighlight();
         $('recbar').classList.add('hidden'); $('reclabel').classList.add('hidden');
         btn.textContent='● הקלט את עצמך שר עם השיר'; btn.disabled=false;
+        btn.classList.remove('hidden'); $('btn-stop').classList.add('hidden');
+        $('btn-play').disabled = false;
         err('err-ready','ההקלטה לא התחילה. נסה שוב.');
         return;
       }
       // stop recording shortly after the segment ends
-      setTimeout(function(){ try{ rec.stop(); }catch(e){} }, total*1000 + 400);
+      recAutoStop = setTimeout(function(){ recAutoStop = null; try{ rec.stop(); }catch(e){} }, total*1000 + 400);
     } catch(e){
       stopSong(); stopHighlight(); clearHighlight();
       $('recbar').classList.add('hidden'); $('reclabel').classList.add('hidden');
       btn.textContent = '● הקלט את עצמך שר עם השיר'; btn.disabled = false;
+      btn.classList.remove('hidden'); $('btn-stop').classList.add('hidden');
+      $('btn-play').disabled = false;
       err('err-ready','ההקלטה לא התחילה. נסה שוב.');
     }
   });
 };
 
+var recAutoStop = null;
+$('btn-stop').onclick = function(){
+  if (recAutoStop){ clearTimeout(recAutoStop); recAutoStop = null; }
+  stopSong(); stopHighlight();
+  try { if (rec) rec.stop(); } catch(e){}
+};
 $('btn-again').onclick = function(){ show('ready'); };
 $('btn-again2').onclick = function(){ show('ready'); };
 $('btn-done').onclick = function(){
