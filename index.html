@@ -125,7 +125,10 @@
     <audio controls id="player"></audio>
     <div id="metrics" class="metrics hidden"></div>
     <button class="secondary" id="btn-again">הקלט שוב</button>
-    <button class="primary" id="btn-done">בוצע ✓</button>
+    <button class="primary" id="btn-review-share">שלח / שתף את ההקלטה</button>
+    <button class="secondary" id="btn-review-download">שמור קובץ בטלפון</button>
+    <p class="hint hidden" id="share-help">אם לא נפתח חלון שיתוף: שמור את הקובץ בטלפון, חזור לוואטסאפ וצרף אותו באמצעות סמל המהדק. הדף לא שולח הקלטות בעצמו.</p>
+    <button class="primary" id="btn-done">אישור הטייק והמשך ✓</button>
   </div>
 
   <div id="done" class="hidden">
@@ -148,7 +151,7 @@
 <script>
 var LEAD = 0.66, TAIL = 2.5;
 function $(id){ return document.getElementById(id); }
-['blocked','gate','ready','review','done','btn-pick','file-input','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
+['blocked','gate','ready','review','done','btn-pick','file-input','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
 function E(id){ return window['E_'+id.replace(/-/g,'_')]; }
 
 function show(name){ ['gate','ready','review','done'].forEach(function(s){ E(s).classList.toggle('hidden', s!==name); }); }
@@ -406,7 +409,7 @@ function showReview(blob){
   takeBlob = blob;
   if (takeUrl) URL.revokeObjectURL(takeUrl);
   takeUrl = URL.createObjectURL(blob);
-  var ext = (blob.type === 'audio/wav') ? 'wav' : 'webm';
+  var ext = blob.type.indexOf('wav')>=0 ? 'wav' : blob.type.indexOf('mp4')>=0 ? 'm4a' : blob.type.indexOf('aac')>=0 ? 'aac' : blob.type.indexOf('ogg')>=0 ? 'ogg' : 'webm';
   var mimeOut = (blob.type === 'audio/wav') ? 'audio/wav' : blob.type;
   var fname = 'line-' + ('0'+(lineIdx+1)).slice(-2) + '-take.' + ext;
   try { takeFile = new File([blob], fname, {type: mimeOut}); } catch(e){ takeFile = null; }
@@ -419,6 +422,7 @@ function showReview(blob){
     }
   };
   E('take-title').textContent = 'שורה ' + (lineIdx+1) + ' - איך יצא?';
+  E('share-help').classList.add('hidden');
   renderMetrics(window._takeMetrics || null);
   window._takeMetrics = null;
   var canShare = false;
@@ -530,8 +534,14 @@ E('btn-download').onclick = function(){
 };
 E('btn-share').onclick = function(){
   if(!takeFile) return;
-  navigator.share({files:[takeFile], title:'הקלטת שורה ' + (lineIdx+1)}).catch(function(){});
+  var can=false;try{can=!!(navigator.canShare&&navigator.canShare({files:[takeFile]}));}catch(e){}
+  if(!can){ E('share-help').classList.remove('hidden'); return; }
+  navigator.share({files:[takeFile], title:'הקלטת שורה ' + (lineIdx+1)}).catch(function(e){
+    if(e.name!=='AbortError')E('share-help').classList.remove('hidden');
+  });
 };
+E('btn-review-share').onclick = E('btn-share').onclick;
+E('btn-review-download').onclick = E('btn-download').onclick;
 E('btn-saved-download').onclick = function(){
   var a = document.createElement('a');
   a.href = E('saved-player').src;
