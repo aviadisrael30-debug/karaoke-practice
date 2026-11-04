@@ -233,7 +233,7 @@ function renderLine(){
   err(E('err-ready'),'');
   // saved take banner for this line
   E('saved').classList.add('hidden');
-  idbGet(takeKey(lineIdx)).then(function(b){
+  idbGet(takeKey(lineIdx)).then(function(b){ return b || idbGet('kfs_draft_'+lineIdx); }).then(function(b){
     if (b){ E('saved-player').src = URL.createObjectURL(b); E('saved').classList.remove('hidden'); }
   }).catch(function(){});
   // progress: approved lines
@@ -431,7 +431,7 @@ function showReview(blob){
 function persistTake(){
   if (!takeBlob) return;
   persistState = 'saving';
-  idbSet(takeKey(lineIdx), takeBlob).then(function(){
+  idbSet('kfs_draft_'+lineIdx, takeBlob).then(function(){
     persistState='ok';
     E('persist-ok').classList.remove('hidden');
     E('persist-fail').classList.add('hidden');
@@ -510,10 +510,17 @@ E('btn-done').onclick = function(){
   show('done');
 };
 E('btn-nextline').onclick = function(){
-  try { localStorage.setItem('kfs_appr_'+lineIdx, '1'); } catch(e){}
-  if (lineIdx < LINES.length-1){ lineIdx++; }
-  else { lineIdx = 0; }
-  saveLineIdx(); renderLine(); show('ready');
+  if (!takeBlob) return;
+  var button = E('btn-nextline'); button.disabled = true;
+  var acceptedLine = lineIdx;
+  idbSet(takeKey(acceptedLine), takeBlob).then(function(){
+    try { localStorage.setItem('kfs_appr_'+acceptedLine, '1'); } catch(e){}
+    lineIdx = acceptedLine < LINES.length-1 ? acceptedLine+1 : 0;
+    saveLineIdx(); renderLine(); show('ready');
+  }).catch(function(){
+    E('persist-fail').textContent = 'לא הצלחתי לשמור את הטייק. הורד אותו לפני סגירת הדף.';
+    E('persist-fail').classList.remove('hidden');
+  }).finally(function(){ button.disabled = false; });
 };
 E('btn-download').onclick = function(){
   if(!takeUrl || !takeFile) return;
