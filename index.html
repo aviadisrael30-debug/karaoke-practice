@@ -264,6 +264,33 @@ function pcmWavBlob(audioBuf){
 
 // --- playback / highlight engine ---
 var segTimer=null, hlTimer=null, playing=false, recording=false;
+var actx = null, songBuf = null, songSrc = null, songT0 = 0, songOff = 0, songDecoding = false;
+function ensureCtx(){
+  var AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return null;
+  if (!actx){ try { actx = new AC(); } catch(e){ return null; } }
+  if (actx.state === 'suspended'){ try { actx.resume(); } catch(e){} }
+  return actx;
+}
+var songGen = 0;
+function decodeSongNow(blob){
+  var gen = ++songGen;
+  songBuf = null;
+  songDecoding = true;
+  blob.arrayBuffer().then(function(ab){
+    var AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    var dctx = actx || new AC();
+    return dctx.decodeAudioData(ab).then(function(buf){ if (gen === songGen) songBuf = buf; });
+  }).catch(function(){}).finally(function(){ if (gen === songGen) songDecoding = false; });
+}
+function stopSongSource(){
+  if (songSrc){ try { songSrc.onended = null; songSrc.stop(); } catch(e){} try { songSrc.disconnect(); } catch(e){} songSrc = null; }
+}
+function songPos(){
+  if (songSrc && actx) return actx.currentTime - songT0 + songOff;
+  return E('song').currentTime;
+}
 var recorder=null, recChunks=[], recStopTimer=null, pendingRec=false;
 
 function stopTimers(){ if(segTimer){clearTimeout(segTimer);segTimer=null;} if(hlTimer){clearInterval(hlTimer);hlTimer=null;} }
@@ -278,20 +305,34 @@ function playSegment(withRec){
   if (!songBlob){ err(E('err-ready'),'קודם טען את קובץ השיר.'); return; }
   var seg = lineSeg();
   stopTimers();
+  stopSongSource();
+  var useWA = !!songBuf && !!ensureCtx();
   var s = E('song');
-  s.pause();
-  try { s.currentTime = seg.start; } catch(e){}
+  if (useWA){
+    try { s.pause(); } catch(e){}
+    songSrc = actx.createBufferSource();
+    songSrc.buffer = songBuf;
+    songSrc.connect(actx.destination);
+    songT0 = actx.currentTime; songOff = seg.start;
+    try { songSrc.start(0, seg.start, seg.dur + 1.0); } catch(e){ stopSongSource(); useWA = false; }
+    songSrc && (songSrc.onended = function(){ if (playing) finishPlayback(withRec); });
+  }
+  if (!useWA){
+    s.pause();
+    try { s.currentTime = seg.start; } catch(e){}
+    s.play().catch(function(){ err(E('err-ready'),'הנגינה נחסמה - נסה שוב.'); playing=false; E('btn-play').disabled=false; });
+  }
   playing = true;
   E('btn-play').disabled = true;
   E('playbar').classList.remove('hidden');
   E('playbar').querySelector('i').style.width = '0';
-  s.play().catch(function(){ err(E('err-ready'),'הנגינה נחסמה - נסה שוב.'); playing=false; E('btn-play').disabled=false; });
   hlTimer = setInterval(function(){
-    var pos = s.currentTime - seg.start;
+    var cur = songPos();
+    var pos = cur - seg.start;
     if (pos < 0) pos = 0;
     highlightWord(currentWordIdx(pos));
     E('playbar').querySelector('i').style.width = Math.min(100, 100*pos/seg.dur) + '%';
-    if (s.currentTime >= seg.playEnd || s.ended) finishPlayback(withRec);
+    if (cur >= seg.playEnd || (!useWA && s.ended)) finishPlayback(withRec);
   }, 80);
   segTimer = setTimeout(function(){ finishPlayback(withRec); }, (seg.dur+0.6)*1000);
 }
@@ -300,6 +341,7 @@ function finishPlayback(fromRec){
   if (!playing) return;
   playing=false;
   stopTimers();
+  stopSongSource();
   try { E('song').pause(); } catch(e){}
   clearHighlight();
   E('playbar').classList.add('hidden');
@@ -312,6 +354,7 @@ function startCountIn(){
   if (!micStream){ err(E('err-ready'),'אין הרשאת מיקרופון.'); return; }
   if (!songBlob){ err(E('err-ready'),'קודם טען את קובץ השיר.'); return; }
   err(E('err-ready'),'');
+  ensureCtx();
   E('countin').classList.remove('hidden');
   var n = 3;
   E('countnum').textContent = n;
@@ -482,6 +525,8 @@ function setSongBlob(blob, name){
   E('song-status').textContent = '✓ ' + (name||'השיר') + ' נטען';
   E('btn-mic').disabled = false;
   err(E('err-gate'),'');
+  stopSongSource();
+  decodeSongNow(blob);
 }
 
 E('btn-mic').onclick = function(){
