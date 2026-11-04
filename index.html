@@ -304,7 +304,7 @@ function finishPlayback(fromRec){
   clearHighlight();
   E('playbar').classList.add('hidden');
   E('btn-play').disabled = false;
-  if (fromRec) stopRecording();
+  if (fromRec) setTimeout(function(){ stopRecording(); }, 1000);
 }
 
 // --- count-in then record ---
@@ -341,7 +341,7 @@ function beginRecord(){
   var mime = pickMime();
   if (!mime){ err(E('err-ready'),'הדפדפן לא תומך בהקלטה כאן. נסה כרום או ספארי עדכני.'); resetRecUI(); return; }
   try {
-    recorder = new MediaRecorder(micStream, {mimeType: mime});
+    recorder = new MediaRecorder(micStream, {mimeType: mime, audioBitsPerSecond: 128000});
   } catch(e){
     err(E('err-ready'),'המיקרופון לא זמין להקלטה בדפדפן הזה.');
     resetRecUI(); return;
@@ -370,18 +370,29 @@ function beginRecord(){
       }).catch(function(){ finish(raw); });
     }).catch(function(){ finish(raw); });
   };
+  var recStarted = false;
+  recorder.onstart = function(){
+    if (recStarted) return; recStarted = true;
+    if (!recording) return;
+    playSegment(true);
+    var barStart = performance.now();
+    var barIv = setInterval(function(){
+      if (!recording){ clearInterval(barIv); return; }
+      var p = Math.min(100, 100*(performance.now()-barStart)/(seg.dur*1000));
+      E('recbar').querySelector('i').style.width = p + '%';
+    }, 100);
+    recStopTimer = setTimeout(function(){ stopRecording(); }, (seg.dur+1.6)*1000);
+  };
   try { recorder.start(250); } catch(e){
     err(E('err-ready'),'ההקלטה לא התחילה. נסה שוב.');
     resetRecUI(); return;
   }
-  playSegment(true);
-  var barStart = performance.now();
-  var barIv = setInterval(function(){
-    if (!recording){ clearInterval(barIv); return; }
-    var p = Math.min(100, 100*(performance.now()-barStart)/(seg.dur*1000));
-    E('recbar').querySelector('i').style.width = p + '%';
-  }, 100);
-  recStopTimer = setTimeout(function(){ stopRecording(); }, (seg.dur+1.2)*1000);
+  setTimeout(function(){
+    if (!recStarted && recording){
+      err(E('err-ready'),'ההקלטה לא התחילה. נסה שוב.');
+      stopRecording();
+    }
+  }, 3000);
 }
 
 function stopRecording(){
@@ -476,7 +487,7 @@ function setSongBlob(blob, name){
 E('btn-mic').onclick = function(){
   err(E('err-gate'),'');
   if (!songBlob){ err(E('err-gate'),'קודם טען את קובץ השיר (שלב 1).'); return; }
-  navigator.mediaDevices.getUserMedia({audio:true}).then(function(s){
+  navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false, channelCount:1, sampleRate:48000}}).then(function(s){
     micStream = s;
     renderLine();
     show('ready');
