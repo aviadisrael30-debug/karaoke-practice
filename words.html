@@ -80,7 +80,7 @@
 </div>
 
 <script>
-window.KFS_BUILD = 'words2-1510';
+window.KFS_BUILD = 'words3-1520';
 var PHRASE = {"id":"i-never-had-to#o1","start":45.6,"words":[["I","אַיי"],["never","נֶוֶור"],["had","הֶאד"],["to","טוּ"],["ask","אַאסְק"]],"times":[[0.1,1.59],[1.59,1.88],[1.88,2.62],[2.62,2.92],[2.92,4.72]]};
 var SLOW = 0.55;
 
@@ -201,7 +201,9 @@ E('btn-prompt').onclick = function(){
   if (!songBuf){ err(E('err-practice'),'השיר עדיין נטען, נסה שוב בעוד רגע.'); return; }
   stopPlayback();
   var ctx = ensureCtx(); if (!ctx) return;
-  var buf = wordPromptBuffer(widx);
+  var buf;
+  try { buf = wordPromptBuffer(widx); }
+  catch(e){ err(E('err-practice'),'קובץ השיר שנטען קצר מהצפוי למילה הזאת. טען את קובץ השיר המלא.'); return; }
   playSrc = ctx.createBufferSource();
   playSrc.buffer = buf;
   playSrc.connect(ctx.destination);
