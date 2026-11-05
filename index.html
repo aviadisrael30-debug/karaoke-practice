@@ -48,6 +48,9 @@
   .linenav button { flex: 1; font-size: 14px; padding: 10px; min-height: 44px; margin-top: 0; }
   .linenav .pos { font-size: 14px; color: #7a756c; white-space: nowrap; font-weight: 700; }
   .cue-note { font-size: 12px; color: #9b968c; text-align: center; margin: -4px 0 10px; }
+  .carryover { font-size: 14px; color: #6b675e; text-align: center; margin: -6px 0 10px; direction: rtl; line-height: 1.5; }
+  .carryover .cow-en { direction: ltr; unicode-bidi: embed; font-weight: 600; }
+  .carryover .cow-he { direction: rtl; unicode-bidi: embed; font-weight: 600; }
     .review-note{margin:6px 0 0;font-size:13px;color:#8a5a00;background:#fff4d6;border:1px solid #e6c76a;border-radius:8px;padding:8px 10px;}
   .metrics { background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 12px 14px; margin: 12px 0 4px; font-size: 14px; line-height: 2; }
   .metrics .mtip { margin-top: 8px; color: #4a463f; border-top: 1px dashed #bae6fd; padding-top: 8px; }
@@ -111,6 +114,7 @@
       <div class="wordrow he" id="words-he"></div>
       <div class="wordrow en" id="words-en"></div>
     </div>
+    <div class="carryover hidden" id="carryover"></div>
     <p class="cue-note">צביעת המילים היא הדרכה בלבד - שר בקצב שלך</p>
     <p class="review-note hidden" id="review-note">שים לב: המילים של השורה הזאת עדיין בבדיקה - ייתכן שהשיר שר כאן קצת אחרת ממה שכתוב. אל תקליט את השורה הזאת עדיין. שאר השורות מוכנות.</p>
     <button class="secondary" id="btn-play">▶ שמע את השורה באוזניות</button>
@@ -182,7 +186,7 @@
 <script>
 var LEAD = 0.66, TAIL = 2.5;
 function $(id){ return document.getElementById(id); }
-['blocked','gate','ready','review','done','btn-pick','file-input','review-note','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','btn-review-save','save-ok','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song','takes','btn-takes','btn-backup','btn-restore','restore-input','restore-msg','takes-list','takes-summary','err-takes','btn-takes-back'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
+['blocked','gate','ready','review','done','btn-pick','file-input','review-note','song-status','btn-mic','mic-hint','err-gate','btn-prev','btn-next','line-pos','words-en','words-he','carryover','btn-play','playbar','btn-earlier','btn-later','btn-rec','btn-stop','recbar','reclabel','saved','saved-player','btn-saved-download','err-ready','progress-line','take-title','metrics','player','btn-again','btn-done','btn-review-share','btn-review-download','btn-review-save','save-ok','share-help','persist-ok','persist-fail','btn-nextline','btn-share','btn-download','btn-again2','countin','countnum','song','takes','btn-takes','btn-backup','btn-restore','restore-input','restore-msg','takes-list','takes-summary','err-takes','btn-takes-back'].forEach(function(id){ window['E_'+id.replace(/-/g,'_')] = $(id); });
 function E(id){ return window['E_'+id.replace(/-/g,'_')]; }
 
 function show(name){ ['gate','ready','review','done','takes'].forEach(function(s){ E(s).classList.toggle('hidden', s!==name); }); }
@@ -327,6 +331,9 @@ function renderLine(){
   err(E('err-ready'),'');
   var inReview = !!REVIEW_IDS[uid(lineIdx)];
   E('review-note').classList.toggle('hidden', !inReview);
+  var co = CARRYOVER[uid(lineIdx)];
+  if (co){ E('carryover').textContent = ''; E('carryover').appendChild(document.createTextNode('\u05de\u05d9\u05dc\u05d4 \u05de\u05d4\u05e9\u05d5\u05e8\u05d4 \u05d4\u05e7\u05d5\u05d3\u05de\u05ea: ')); var cwe = document.createElement('span'); cwe.className='cow-en'; cwe.textContent = co[0]; E('carryover').appendChild(cwe); E('carryover').appendChild(document.createTextNode(' (')); var cwh = document.createElement('span'); cwh.className='cow-he'; cwh.textContent = co[1]; E('carryover').appendChild(cwh); E('carryover').appendChild(document.createTextNode(')')); E('carryover').classList.remove('hidden'); }
+  else { E('carryover').classList.add('hidden'); }
   E('btn-rec').disabled = inReview;
   // saved take banner for this line
   E('saved').classList.add('hidden');
@@ -344,7 +351,12 @@ var LINES = [{"id":"how-do-i-say#o1","words":[["how","הַאוּ"],["do","דוּ
 var LEGACY_IDS = ["how-do-i-say#o1", "to-someone-who-was#o1", "you-were-my-home#o1", "always-first-through-the#o1", "i-never-had-to#o1", "you-laughed-the-whole#o1", "you-danced-like-time#o1", "you-wanted-rest-beside#o1", "we-wanted-you-to#o1", "you-taught-me-i#o1", "you-never-taught-me#o1", "how-do-i-let#o1", "you-taught-me-i#o2", "ill-always-be-your#o1", "when-she-was-gone#o1", "the-strongest-man-id#o1", "i-held-on-to#o1", "forgive-me-for-not#o1", "my-love-was-there#o1", "i-hope-you-felt#o1", "tell-her-that-i#o1", "in-my-mind-youre#o1", "still-first-through-the#o1", "you-taught-me-i#o3", "you-never-taught-me#o2", "how-do-i-let#o2", "you-taught-me-i#o4", "you-never-taught-me#o3", "your-little-girl-your#o1", "whatever-years-may-come#o1", "ill-always-be-your#o2", "you-taught-me-i#o5", "how-do-i-learn#o1", "always-your-little-girl#o1"];
 var OFF_OK = {"0": true, "1": true, "2": true, "3": true, "4": false, "5": false, "6": false, "7": false, "8": false, "9": false, "10": false, "11": false, "12": false, "13": false, "14": true, "15": false, "16": false, "17": false, "18": true, "19": false, "20": false, "21": false, "22": false, "23": false, "24": true, "25": false, "26": false, "27": false, "28": false, "29": false, "30": false, "31": true, "32": false, "33": false};
 var REVIEW_IDS = {"ill-always-be-your#o1": true};
-window.KFS_BUILD = "align2-takes6-0155";
+// carryover cue: a word from the PREVIOUS line is still audible when this line's window opens
+// (phonetically confirmed on vocal stems, faster-whisper small.en; display-only, no timing change)
+var CARRYOVER = {
+  "you-laughed-the-whole#o1": ["ask", "\u05d0\u05b7\u05d0\u05e1\u05b0\u05e7"]
+};
+window.KFS_BUILD = "align2-carry2-0208";
 
 // --- WAV conversion (export/share) ---
 function pcmWavBlob(audioBuf){
